@@ -1,23 +1,30 @@
 #ifndef KVS_OPERATIONS_H
 #define KVS_OPERATIONS_H
 
-#include <stddef.h>
 #include <dirent.h>
+#include <stddef.h>
 
 /// Initializes the KVS state.
 /// @return 0 if the KVS state was initialized successfully, 1 otherwise.
 int kvs_init();
 
+int check_if_pair_exists(char key);
+
 /// Destroys the KVS state.
 /// @return 0 if the KVS state was terminated successfully, 1 otherwise.
 int kvs_terminate();
+
+void kvs_subscribe(int fd, const char key);
+
+int kvs_unsubscribe(int fd, const char key);
 
 /// Writes a key value pair to the KVS. If key already exists it is updated.
 /// @param num_pairs Number of pairs being written.
 /// @param keys Array of keys' strings.
 /// @param values Array of values' strings.
 /// @return 0 if the pairs were written successfully, 1 otherwise.
-int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE], char values[][MAX_STRING_SIZE]);
+int kvs_write(size_t num_pairs, char keys[][MAX_STRING_SIZE],
+              char values[][MAX_STRING_SIZE]);
 
 /// Reads values from the KVS.
 /// @param num_pairs Number of pairs to read.
@@ -39,7 +46,8 @@ void kvs_show(int fd);
 /// Creates a backup of the KVS state and stores it in the correspondent
 /// backup file
 /// @return 0 if the backup was successful, 1 otherwise.
-int kvs_backup(int fd, int out_fd, const char *job_path, size_t pathLength, int *bck_counter, DIR *dir);
+int kvs_backup(int fd, int out_fd, const char *job_path, size_t pathLength,
+               int *bck_counter, DIR *dir);
 
 /// Waits for the last backup to be called.
 void kvs_wait_backup();
@@ -48,4 +56,4 @@ void kvs_wait_backup();
 /// @param delay_us Delay in milliseconds.
 void kvs_wait(unsigned int delay_ms);
 
-#endif // KVS_OPERATIONS_H
+#endif  // KVS_OPERATIONS_H

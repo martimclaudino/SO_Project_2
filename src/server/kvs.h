@@ -2,20 +2,20 @@
 #define KEY_VALUE_STORE_H
 
 #define TABLE_SIZE 26
-
-#include <stddef.h>
 #include <pthread.h>
+#include <stddef.h>
 
-typedef struct KeyNode
-{
+#include "../common/constants.h"
+
+typedef struct KeyNode {
   char *key;
   char *value;
   struct KeyNode *next;
+  int subscribers[MAX_SESSION_COUNT];
 
 } KeyNode;
 
-typedef struct HashTable
-{
+typedef struct HashTable {
   KeyNode *table[TABLE_SIZE];
   pthread_rwlock_t GlobalLock;
   pthread_rwlock_t rwlock[TABLE_SIZE];
@@ -26,6 +26,10 @@ typedef struct HashTable
 struct HashTable *create_hash_table();
 
 int hash(const char *key);
+
+void register_subscribe(int fd, HashTable *ht, const char key);
+
+int register_unsubscribe(int fd, HashTable *ht, const char key);
 
 /// Appends a new key value pair to the hash table.
 /// @param ht Hash table to be modified.
@@ -50,4 +54,4 @@ int delete_pair(HashTable *ht, const char *key);
 /// @param ht Hash table to be deleted.
 void free_table(HashTable *ht);
 
-#endif // KVS_H
+#endif  // KVS_H

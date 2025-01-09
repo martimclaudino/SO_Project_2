@@ -39,11 +39,19 @@ int kvs_terminate() {
   return 0;
 }
 
-int check_if_pair_exists(char key) {
+int check_if_pair_exists(const char key) {
   if (read_pair(kvs_table, key) == NULL) {
     return 0;
   }
   return 1;
+}
+
+void kvs_subscribe(int fd, const char key) {
+  register_subscribe(fd, kvs_table, key);
+}
+
+int kvs_unsubscribe(int fd, const char key) {
+  return register_unsubscribe(fd, kvs_table, key);
 }
 
 void sort_keys_and_values(char keys[][MAX_STRING_SIZE],

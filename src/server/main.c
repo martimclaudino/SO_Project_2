@@ -5,7 +5,8 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>     // Para funções de manipulação de strings
+#include <string.h>  // Para funções de manipulação de strings
+#include <sys/stat.h>
 #include <sys/types.h>  // Para tipos POSIX básicos
 #include <sys/wait.h>
 #include <unistd.h>
@@ -26,6 +27,13 @@ typedef struct {
   int *thread_index;
 } FilePath;
 
+typedef struct {
+  char *req_pipe_path;
+  char *resp_pipe_path;
+  char buffer[121];
+
+} Client;
+
 int count_job_files(const char *directory);
 
 void *process_file(void *counter);
@@ -37,16 +45,47 @@ pthread_mutex_t backup_lock;
 FilePath *file_paths = NULL;
 int file_num = 0;
 
-int subscribe(char key) {
-  return check_if_pair_exists(key);
+int subscribe(int fd, const char key) {
+  int check = check_if_pair_exists(key);
+  if (check == 1) {
+    kvs_subscribe(fd, key);
+  }
+  return check;
   // devolve 0 ou 1 0->key n existe na hashtable 1->key existe na hashtable
 }
 
-int unsubscribe(char key) {
+int unsubscribe(int fd, char key) {
   // devolve 0 ou 1 0->subscricao existia e foi removida 1->subscrição nao
   // existia
-  return 0;
+  int check = kvs_unsubscribe(fd, key);
+
+  return check;
 }
+
+/* {
+  char *msg = (char *)buffer;
+  char opcode = msg[0];
+  char key[40];
+  strncpy(key, msg + 1, 40);
+  if (opcode == 2) {
+    // disconnect
+  } else if (opcode == 3) {
+    int res = subscribe(key);
+    if (write(resp_fd, opcode + res, 2) == -1) {
+      perror("Failed to write to response pipe");
+      return NULL;
+    }
+  } else if (opcode == 4) {
+    int res2 = unsubscribe(key);
+    if (write(resp_fd, opcode + res2, 2) == -1) {
+      perror("Failed to write to response pipe");
+      return NULL;
+    }
+  }
+  return NULL;
+} */
+
+void *respond_client(void *buffer);
 
 int main(int argc, char *argv[]) {
   if (argc != 5) {
@@ -118,79 +157,24 @@ int main(int argc, char *argv[]) {
     printf("Erro ao abrir o diretório\n");
   }
   int pipe_fd;
-  if (pipe_fd = open(server_pipe_path, O_RDONLY) < 0) {
+  if ((pipe_fd = open(server_pipe_path, O_RDONLY)) < 0) {
     perror("Failed to open named pipe");
     return 1;
   }
 
-  int req_fd, resp_fd, notif_fd;
-  // Receiving client connections through server pipe
+  // int req_fd, resp_fd, notif_fd;
+  //  Receiving client connections through server pipe
   while (1) {
     char buffer[121];
     if (read_all(pipe_fd, buffer, 121, NULL) == -1) {
       fprintf(stderr, "Failed to read message from client\n");
       return 1;
     }
-
-    // Spliting the 3 client paths
-    char opcode = buffer[0];
-    char req_pipe_path[41];
-    char resp_pipe_path[41];
-    char notif_pipe_path[41];
-    strncpy(req_pipe_path, buffer + 1, 40);
-    req_pipe_path[40] = '\0';
-    strncpy(resp_pipe_path, buffer + 41, 40);
-    resp_pipe_path[40] = '\0';
-    strncpy(notif_pipe_path, buffer + 81, 40);
-    notif_pipe_path[40] = '\0';
-
-    // Opening the pipes
-    if (resp_fd = open(resp_pipe_path, O_RDONLY) < 0) {
-      perror("Failed to open response pipe");
-      return 1;
-    }
-    if (req_fd = open(req_pipe_path, O_WRONLY) < 0) {
-      write(resp_pipe_path, opcode + "1", 2);
-      perror("Failed to open request pipe");
-      return 1;
-    }
-
-    if (notif_fd = open(notif_pipe_path, O_RDONLY) < 0) {
-      write(resp_pipe_path, opcode + "1", 2);
-      perror("Failed to open notification pipe");
-      return 1;
-    }
-    // Connection successful message
-    write(resp_pipe_path, opcode + "0", 2);
+    pthread_t resp_thread;
+    pthread_create(&resp_thread, NULL, respond_client, (void *)buffer);
   }
 
   // receives the client connection through the request pipe
-  while (1) {
-    char buffer[41];
-    if (read_all(req_fd, buffer, 41, NULL) == -1) {
-      fprintf(stderr, "Failed to read message from client\n");
-      return 1;
-    }
-    // Spliting the 3 client paths
-    char opcode = buffer[0];
-    char key[40];
-    strncpy(key, buffer + 1, 40);
-    if (opcode == 2) {
-      // disconnect
-    } else if (opcode == 3) {
-      int res = subscribe(key);
-      if (write(resp_fd, opcode + res, 2) == -1) {
-        perror("Failed to write to response pipe");
-        return 1;
-      }
-    } else if (opcode == 4) {
-      int res2 = unsubscribe(key);
-      if (write(resp_fd, opcode + res2, 2) == -1) {
-        perror("Failed to write to response pipe");
-        return 1;
-      }
-    }
-  }
 
   for (int i = 0; i < thread_counter; i++) {
     pthread_join(threads[i], NULL);
@@ -224,6 +208,77 @@ int count_job_files(const char *directory) {
 
   closedir(dir);
   return job_file_count;
+}
+
+void *respond_client(void *buffer0) {
+  // Spliting the 3 client paths
+  const char *buffer = (const char *)buffer0;
+  int req_fd, resp_fd, notif_fd;
+  char opcode = buffer[0];
+  char req_pipe_path[41];
+  char resp_pipe_path[41];
+  char notif_pipe_path[41];
+  strncpy(req_pipe_path, buffer + 1, 40);
+  req_pipe_path[40] = '\0';
+  strncpy(resp_pipe_path, buffer + 41, 40);
+  resp_pipe_path[40] = '\0';
+  strncpy(notif_pipe_path, buffer + 81, 40);
+  notif_pipe_path[40] = '\0';
+
+  // Opening the pipes
+  if ((resp_fd = open(resp_pipe_path, O_RDONLY)) < 0) {
+    perror("Failed to open response pipe");
+    return NULL;
+  }
+  if ((req_fd = open(req_pipe_path, O_WRONLY)) < 0) {
+    write_all(resp_fd, opcode + "1", 2);
+    perror("Failed to open request pipe");
+    return NULL;
+  }
+
+  if ((notif_fd = open(notif_pipe_path, O_RDONLY)) < 0) {
+    write_all(resp_fd, opcode + "1", 2);
+    perror("Failed to open notification pipe");
+    return NULL;
+  }
+  // Connection successful message
+  if (write_all(resp_fd, opcode + "0", 2) == -1) {
+    perror("Failed to write to response pipe");
+    return NULL;
+  }
+
+  while (1) {
+    char message_received[41];
+    if (read_all(req_fd, message_received, 41, NULL) == -1) {
+      fprintf(stderr, "Failed to read message from client\n");
+      return NULL;
+    }
+    // Spliting the 3 client paths
+    char opcode2 = message_received[0];
+    char key[40];
+    strncpy(key, message_received + 1, 40);
+    if (opcode2 == 2) {
+      // disconnect
+    } else if (opcode2 == 3) {
+      int res = subscribe(req_fd, (const char)*key);
+      char message_sent[2];
+      message_sent[0] = opcode2;
+      message_sent[1] = (char)res;
+      if (write_all(resp_fd, message_sent, 2) == -1) {
+        perror("Failed to write to response pipe");
+        return NULL;
+      }
+    } else if (opcode2 == 4) {
+      int res2 = unsubscribe(req_fd, (const char)*key);
+      char transmission[2];
+      transmission[0] = opcode2;
+      transmission[1] = (char)res2;
+      if (write_all(resp_fd, transmission, 2) == -1) {
+        perror("Failed to write to response pipe");
+        return NULL;
+      }
+    }
+  }
 }
 
 void *process_file(void *counter) {
