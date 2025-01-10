@@ -221,83 +221,85 @@ int count_job_files(const char *directory) {
 }
 
 void *respond_client() {
-  // Spliting the 3 client paths
-  const char *buffer = (const char *)buffer0;
-  int req_fd, resp_fd, notif_fd;
-  char opcode = buffer[0];
-  char req_pipe_path[41];
-  char resp_pipe_path[41];
-  char notif_pipe_path[41];
-  strncpy(req_pipe_path, buffer + 1, 40);
-  req_pipe_path[40] = '\0';
-  strncpy(resp_pipe_path, buffer + 41, 40);
-  resp_pipe_path[40] = '\0';
-  strncpy(notif_pipe_path, buffer + 81, 40);
-  notif_pipe_path[40] = '\0';
-
-  // Opening the pipes
-  if ((resp_fd = open(resp_pipe_path, O_RDONLY)) < 0) {
-    perror("Failed to open response pipe");
-    return NULL;
-  }
-  if ((req_fd = open(req_pipe_path, O_WRONLY)) < 0) {
-    write_all(resp_fd, opcode + "1", 2);
-    perror("Failed to open request pipe");
-    return NULL;
-  }
-
-  if ((notif_fd = open(notif_pipe_path, O_RDONLY)) < 0) {
-    write_all(resp_fd, opcode + "1", 2);
-    perror("Failed to open notification pipe");
-    return NULL;
-  }
-  // Connection successful message
-  if (write_all(resp_fd, opcode + "0", 2) == -1) {
-    perror("Failed to write to response pipe");
-    return NULL;
-  }
-
   while (1) {
-    /* char message_received[41];
-    if (read_all(req_fd, message_received, 41, NULL) == -1) {
-      fprintf(stderr, "Failed to read message from client\n");
-      return NULL;
-    } */
-    // Spliting the 3 client paths
-    char opcode2[1];
-    if (read_all(req_fd, opcode, 1, NULL) == -1) {
-      fprintf(stderr, "Failed to read message from client\n");
+        // Spliting the 3 client paths
+    const char *buffer = (const char *)buffer0;
+    int req_fd, resp_fd, notif_fd;
+    char opcode = buffer[0];
+    char req_pipe_path[41];
+    char resp_pipe_path[41];
+    char notif_pipe_path[41];
+    strncpy(req_pipe_path, buffer + 1, 40);
+    req_pipe_path[40] = '\0';
+    strncpy(resp_pipe_path, buffer + 41, 40);
+    resp_pipe_path[40] = '\0';
+    strncpy(notif_pipe_path, buffer + 81, 40);
+    notif_pipe_path[40] = '\0';
+
+    // Opening the pipes
+    if ((resp_fd = open(resp_pipe_path, O_RDONLY)) < 0) {
+      perror("Failed to open response pipe");
       return NULL;
     }
-    char key[40];
-    if (opcode2 == 2) {
-      kvs_disconnect_server(req_fd, resp_fd, notif_fd);
-      // disconnect
-    } else if (opcode2 == 3) {
-      if (read_all(req_fd, key, 40, NULL) == -1) {
+    if ((req_fd = open(req_pipe_path, O_WRONLY)) < 0) {
+      write_all(resp_fd, opcode + "1", 2);
+      perror("Failed to open request pipe");
+      return NULL;
+    }
+
+    if ((notif_fd = open(notif_pipe_path, O_RDONLY)) < 0) {
+      write_all(resp_fd, opcode + "1", 2);
+      perror("Failed to open notification pipe");
+      return NULL;
+    }
+    // Connection successful message
+    if (write_all(resp_fd, opcode + "0", 2) == -1) {
+      perror("Failed to write to response pipe");
+      return NULL;
+    }
+
+    while (1) {
+      /* char message_received[41];
+      if (read_all(req_fd, message_received, 41, NULL) == -1) {
+        fprintf(stderr, "Failed to read message from client\n");
+        return NULL;
+      } */
+      // Spliting the 3 client paths
+      char opcode2[1];
+      if (read_all(req_fd, opcode, 1, NULL) == -1) {
         fprintf(stderr, "Failed to read message from client\n");
         return NULL;
       }
-      int res = subscribe(notif_fd, (const char)*key);
-      char message_sent[2];
-      message_sent[0] = opcode2;
-      message_sent[1] = (char)res;
-      if (write_all(resp_fd, message_sent, 2) == -1) {
-        perror("Failed to write to response pipe");
-        return NULL;
-      }
-    } else if (opcode2 == 4) {
-      if (read_all(req_fd, key, 40, NULL) == -1) {
-        fprintf(stderr, "Failed to read message from client\n");
-        return NULL;
-      }
-      int res2 = unsubscribe(notif_fd, (const char)*key);
-      char transmission[2];
-      transmission[0] = opcode2;
-      transmission[1] = (char)res2;
-      if (write_all(resp_fd, transmission, 2) == -1) {
-        perror("Failed to write to response pipe");
-        return NULL;
+      char key[40];
+      if (opcode2 == 2) {
+        kvs_disconnect_server(req_fd, resp_fd, notif_fd);
+        // disconnect
+      } else if (opcode2 == 3) {
+        if (read_all(req_fd, key, 40, NULL) == -1) {
+          fprintf(stderr, "Failed to read message from client\n");
+          return NULL;
+        }
+        int res = subscribe(notif_fd, (const char)*key);
+        char message_sent[2];
+        message_sent[0] = opcode2;
+        message_sent[1] = (char)res;
+        if (write_all(resp_fd, message_sent, 2) == -1) {
+          perror("Failed to write to response pipe");
+          return NULL;
+        }
+      } else if (opcode2 == 4) {
+        if (read_all(req_fd, key, 40, NULL) == -1) {
+          fprintf(stderr, "Failed to read message from client\n");
+          return NULL;
+        }
+        int res2 = unsubscribe(notif_fd, (const char)*key);
+        char transmission[2];
+        transmission[0] = opcode2;
+        transmission[1] = (char)res2;
+        if (write_all(resp_fd, transmission, 2) == -1) {
+          perror("Failed to write to response pipe");
+          return NULL;
+        }
       }
     }
   }
