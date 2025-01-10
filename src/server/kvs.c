@@ -4,8 +4,10 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "../common/io.h"
+#include "operations.h"
 #include "string.h"
 
 // Hash function based on key initial.

@@ -3,6 +3,7 @@
 #include <fcntl.h>   // Para open()
 #include <limits.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>  // Para funções de manipulação de strings
@@ -14,6 +15,7 @@
 
 #include "../common/io.h"
 #include "constants.h"
+#include "kvs.h"
 #include "operations.h"
 #include "parser.h"
 
@@ -44,6 +46,12 @@ pthread_mutex_t thread_lock;
 pthread_mutex_t backup_lock;
 FilePath *file_paths = NULL;
 int file_num = 0;
+pthread_mutex_t sem_mutex = PTHREAD_MUTEX_INITIALIZER;
+int insert_index = 0;
+int remove_index = 0;
+char queue[MAX_SESSION_COUNT][121];
+sem_t full;
+sem_t empty;
 
 int subscribe(int fd, const char key) {
   int check = check_if_pair_exists(key);
@@ -62,30 +70,26 @@ int unsubscribe(int fd, char key) {
   return check;
 }
 
-/* {
-  char *msg = (char *)buffer;
-  char opcode = msg[0];
-  char key[40];
-  strncpy(key, msg + 1, 40);
-  if (opcode == 2) {
-    // disconnect
-  } else if (opcode == 3) {
-    int res = subscribe(key);
-    if (write(resp_fd, opcode + res, 2) == -1) {
-      perror("Failed to write to response pipe");
-      return NULL;
-    }
-  } else if (opcode == 4) {
-    int res2 = unsubscribe(key);
-    if (write(resp_fd, opcode + res2, 2) == -1) {
-      perror("Failed to write to response pipe");
-      return NULL;
-    }
-  }
-  return NULL;
-} */
+void *respond_client();
 
-void *respond_client(void *buffer);
+void write_msg(char *Msg) {
+  sem_wait(&empty);
+  pthread_mutex_lock(&sem_mutex);
+  strcpy(queue[insert_index], Msg);
+  // se der merda no futuro adicionar \0 no final da string
+  insert_index = (insert_index + 1) % MAX_SESSION_COUNT;
+  pthread_mutex_unlock(&sem_mutex);
+  sem_post(&full);
+}
+
+void read_msg(char *Msg) {
+  sem_wait(&full);
+  pthread_mutex_lock(&sem_mutex);
+  strcpy(Msg, queue[remove_index]);
+  remove_index = (remove_index + 1) % MAX_SESSION_COUNT;
+  pthread_mutex_unlock(&sem_mutex);
+  sem_post(&empty);
+}
 
 int main(int argc, char *argv[]) {
   if (argc != 5) {
@@ -164,7 +168,7 @@ int main(int argc, char *argv[]) {
 
   // int req_fd, resp_fd, notif_fd;
   //  Receiving client connections through server pipe
-  while (1) {
+  /* while (1) {
     char buffer[121];
     if (read_all(pipe_fd, buffer, 121, NULL) == -1) {
       fprintf(stderr, "Failed to read message from client\n");
@@ -172,6 +176,12 @@ int main(int argc, char *argv[]) {
     }
     pthread_t resp_thread;
     pthread_create(&resp_thread, NULL, respond_client, (void *)buffer);
+  } */
+
+  pthread_t t_client[MAX_SESSION_COUNT];
+
+  for (int i = 0; i < MAX_SESSION_COUNT; i++) {
+    pthread_create(&t_client[i], NULL, respond_client, NULL);
   }
 
   // receives the client connection through the request pipe
@@ -210,7 +220,7 @@ int count_job_files(const char *directory) {
   return job_file_count;
 }
 
-void *respond_client(void *buffer0) {
+void *respond_client() {
   // Spliting the 3 client paths
   const char *buffer = (const char *)buffer0;
   int req_fd, resp_fd, notif_fd;
@@ -248,19 +258,26 @@ void *respond_client(void *buffer0) {
   }
 
   while (1) {
-    char message_received[41];
+    /* char message_received[41];
     if (read_all(req_fd, message_received, 41, NULL) == -1) {
       fprintf(stderr, "Failed to read message from client\n");
       return NULL;
-    }
+    } */
     // Spliting the 3 client paths
-    char opcode2 = message_received[0];
+    char opcode2[1];
+    if (read_all(req_fd, opcode, 1, NULL) == -1) {
+      fprintf(stderr, "Failed to read message from client\n");
+      return NULL;
+    }
     char key[40];
-    strncpy(key, message_received + 1, 40);
     if (opcode2 == 2) {
       kvs_disconnect_server(req_fd, resp_fd, notif_fd);
       // disconnect
     } else if (opcode2 == 3) {
+      if (read_all(req_fd, key, 40, NULL) == -1) {
+        fprintf(stderr, "Failed to read message from client\n");
+        return NULL;
+      }
       int res = subscribe(notif_fd, (const char)*key);
       char message_sent[2];
       message_sent[0] = opcode2;
@@ -270,6 +287,10 @@ void *respond_client(void *buffer0) {
         return NULL;
       }
     } else if (opcode2 == 4) {
+      if (read_all(req_fd, key, 40, NULL) == -1) {
+        fprintf(stderr, "Failed to read message from client\n");
+        return NULL;
+      }
       int res2 = unsubscribe(notif_fd, (const char)*key);
       char transmission[2];
       transmission[0] = opcode2;
