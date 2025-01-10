@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "../common/io.h"
 #include "string.h"
 
 // Hash function based on key initial.
@@ -37,7 +38,7 @@ struct HashTable *create_hash_table() {
 }
 
 void register_subscribe(int fd, HashTable *ht, const char key) {
-  int index = hash(key);
+  int index = hash(&key);
   KeyNode *keyNode = ht->table[index];
   for (int i = 0; i < MAX_SESSION_COUNT; i++) {
     if (keyNode->subscribers[i] == 0) {
@@ -48,7 +49,7 @@ void register_subscribe(int fd, HashTable *ht, const char key) {
 }
 
 int register_unsubscribe(int fd, HashTable *ht, const char key) {
-  int index = hash(key);
+  int index = hash(&key);
   KeyNode *keyNode = ht->table[index];
   for (int i = 0; i < MAX_SESSION_COUNT; i++) {
     if (keyNode->subscribers[i] == fd) {
@@ -61,6 +62,7 @@ int register_unsubscribe(int fd, HashTable *ht, const char key) {
 
 int write_pair(HashTable *ht, const char *key, const char *value) {
   int index = hash(key);
+  int notif_fd;
   KeyNode *keyNode = ht->table[index];
 
   // Search for the key node
@@ -68,7 +70,17 @@ int write_pair(HashTable *ht, const char *key, const char *value) {
     if (strcmp(keyNode->key, key) == 0) {
       free(keyNode->value);
       keyNode->value = strdup(value);
-
+      for (int i = 0; i < MAX_SESSION_COUNT; i++) {
+        if (keyNode->subscribers[i] != 0) {
+          notif_fd = keyNode->subscribers[i];
+          char buffer[82];
+          snprintf(buffer, sizeof(buffer), "%s%s", key, value);
+          if (write_all(notif_fd, buffer, strlen(buffer)) == -1) {
+            return 1;
+          }
+          return 0;
+        }
+      }
       return 0;
     }
     keyNode = keyNode->next;  // Move to the next node
@@ -80,7 +92,7 @@ int write_pair(HashTable *ht, const char *key, const char *value) {
   keyNode->value = strdup(value);    // Allocate memory for the value
   keyNode->next = ht->table[index];  // Link to existing nodes
   ht->table[index] = keyNode;  // Place new key node at the start of the list
-  memset(keyNode->subscribers, 0, MAX_SESSION_COUNT);
+  memset(keyNode->subscribers, 0, MAX_SESSION_COUNT * sizeof(int));
   return 0;
 }
 
@@ -99,8 +111,25 @@ char *read_pair(HashTable *ht, const char *key) {
   return NULL;  // Key not found
 }
 
+int kvs_disconnect_server(int req_fd, int resp_fd, int notif_fd) {
+  int res = clean_client(notif_fd);
+  char message_sent[2];
+  message_sent[0] = '2';
+  message_sent[1] = (char)res;
+  if (write_all(resp_fd, message_sent, 2) == -1) {
+    perror("Failed to write to response pipe");
+    return 1;
+  }
+  close(req_fd);
+  close(resp_fd);
+  close(notif_fd);
+  return 0;
+}
+
 int delete_pair(HashTable *ht, const char *key) {
   int index = hash(key);
+  char key_sent[41];
+  int notif_fd;
   KeyNode *keyNode = ht->table[index];
   KeyNode *prevNode = NULL;
   //  Search for the key node
@@ -115,6 +144,17 @@ int delete_pair(HashTable *ht, const char *key) {
         // Node to delete is not the first; bypass it
         prevNode->next =
             keyNode->next;  // Link the previous node to the next node
+      }
+      sprintf(key_sent, "%s", keyNode->key);
+      for (int i = 0; i < MAX_SESSION_COUNT; i++) {
+        if (keyNode->subscribers[i] != 0) {
+          notif_fd = keyNode->subscribers[i];
+          char buffer[82];
+          snprintf(buffer, sizeof(buffer), "%s%s", key_sent, "DELETED");
+          if (write_all(notif_fd, buffer, strlen(buffer)) == -1) {
+            return 1;
+          }
+        }
       }
       // Free the memory allocated for the key and value
       free(keyNode->key);

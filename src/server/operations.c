@@ -40,10 +40,25 @@ int kvs_terminate() {
 }
 
 int check_if_pair_exists(const char key) {
-  if (read_pair(kvs_table, key) == NULL) {
+  if (read_pair(kvs_table, &key) == NULL) {
     return 0;
   }
   return 1;
+}
+
+int clean_client(int notif_fd) {
+  for (int i = 0; i < TABLE_SIZE; i++) {
+    KeyNode *keyNode = kvs_table->table[i];
+    while (keyNode != NULL) {
+      for (int j = 0; j < MAX_SESSION_COUNT; j++) {
+        if (keyNode->subscribers[j] == notif_fd) {
+          keyNode->subscribers[j] = 0;
+        }
+      }
+      keyNode = keyNode->next;
+    }
+  }
+  return 0;
 }
 
 void kvs_subscribe(int fd, const char key) {

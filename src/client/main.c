@@ -16,25 +16,42 @@ typedef struct {
   char *notif_path;
 } NotifPipe;
 
-void *notif_func(void *pipe) {
-  int notif_fd = open((char *)pipe, O_RDONLY);
+void *notif_func(void *fd) {
+  int notif_fd = *(int *)fd;
   if (notif_fd < 0) {
     perror("Failed to open notification pipe");
     return NULL;
   }
+  /*
+    char buffer[121];
+    while (1) {
+      if (read_all(notif_fd, buffer, 121, NULL) == -1) {
+        fprintf(stderr, "Failed to read message from client\n");
+        return NULL;
+      }
 
-  char buffer[121];
+      char opcode = buffer[0];
+      char key[40];
+      strncpy(key, buffer + 1, 40);
+      if (opcode == 5) {
+        printf("Notification received: %s\n", key);
+      }
+    } */
+  char buffer[82];
   while (1) {
-    if (read_all(notif_fd, buffer, 121, NULL) == -1) {
+    if (read_all(notif_fd, buffer, 82, NULL) == -1) {
       fprintf(stderr, "Failed to read message from client\n");
       return NULL;
     }
-
-    char opcode = buffer[0];
-    char key[40];
-    strncpy(key, buffer + 1, 40);
-    if (opcode == 5) {
-      printf("Notification received: %s\n", key);
+    char key[41];
+    char value[41];
+    strncpy(key, buffer, 41);
+    strncpy(value, buffer + 41, 41);
+    char message[86];
+    snprintf(message, sizeof(message), "(%s, %s)\n", key, value);
+    if (write_all(1, message, 86) == -1) {
+      perror("Failed to write to response pipe");
+      return NULL;
     }
   }
 }
@@ -59,18 +76,20 @@ int main(int argc, char *argv[]) {
   strncat(resp_pipe_path, argv[1], strlen(argv[1]) * sizeof(char));
   strncat(notif_pipe_path, argv[1], strlen(argv[1]) * sizeof(char));
 
-  NotifPipe notif_pipe;
-  strncpy(notif_pipe.notif_path, notif_pipe_path, 40);
-  pthread_t notif_thread;
-  if (pthread_create(&notif_thread, NULL, notif_func, (void *)&notif_pipe) !=
-      0) {
-    fprintf(stderr, "Failed to create notification thread\n");
+  int notif_fd = -1;
+  int req_fd, resp_fd = -1;
+
+  if (kvs_connect(req_pipe_path, resp_pipe_path, server_pipe_path,
+                  notif_pipe_path, &notif_fd, &req_fd, &resp_fd)) {
+    fprintf(stderr, "Failed to connect to the server\n");
     return 1;
   }
 
-  if (kvs_connect(req_pipe_path, resp_pipe_path, server_pipe_path,
-                  notif_pipe_path)) {
-    fprintf(stderr, "Failed to connect to the server\n");
+  /* NotifPipe notif_pipe;
+  strncpy(notif_pipe.notif_path, notif_pipe_path, 40); */
+  pthread_t notif_thread;
+  if (pthread_create(&notif_thread, NULL, notif_func, (void *)&notif_fd) != 0) {
+    fprintf(stderr, "Failed to create notification thread\n");
     return 1;
   }
 
@@ -79,7 +98,8 @@ int main(int argc, char *argv[]) {
   while (1) {
     switch (get_next(STDIN_FILENO)) {
       case CMD_DISCONNECT:
-        if (kvs_disconnect() != 0) {
+        if (kvs_disconnect(req_fd, resp_fd, notif_fd, req_pipe_path,
+                           resp_pipe_path, notif_pipe_path) != 0) {
           fprintf(stderr, "Failed to disconnect to the server\n");
           return 1;
         }

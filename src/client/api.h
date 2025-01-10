@@ -11,10 +11,12 @@
 /// @param server_pipe_path Path to the name pipe where the server is listening.
 /// @return 0 if the connection was established successfully, 1 otherwise.
 int kvs_connect(char *req_pipe_path, char *resp_pipe_path,
-                char *server_pipe_path, char *notif_pipe_path);
+                char *server_pipe_path, char *notif_pipe_path,
+                int *notif_fd_main, int *req_fd_main, int *resp_fd_main);
 /// Disconnects from an KVS server.
 /// @return 0 in case of success, 1 otherwise.
-int kvs_disconnect(void);
+int kvs_disconnect(int req_fd, int resp_fd, int notif_fd, char *req_pipe_path,
+                   char *resp_pipe_path, char *notif_pipe_path);
 
 /// Requests a subscription for a key
 /// @param key Key to be subscribed

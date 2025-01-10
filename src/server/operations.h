@@ -8,11 +8,13 @@
 /// @return 0 if the KVS state was initialized successfully, 1 otherwise.
 int kvs_init();
 
-int check_if_pair_exists(char key);
+int check_if_pair_exists(const char key);
 
 /// Destroys the KVS state.
 /// @return 0 if the KVS state was terminated successfully, 1 otherwise.
 int kvs_terminate();
+
+int clean_client(int notif_fd);
 
 void kvs_subscribe(int fd, const char key);
 

@@ -11,7 +11,8 @@
 #include "src/common/protocol.h"
 int req_fd, resp_fd, notif_fd;
 int kvs_connect(char *req_pipe_path, char *resp_pipe_path,
-                char *server_pipe_path, char *notif_pipe_path) {
+                char *server_pipe_path, char *notif_pipe_path,
+                int *notif_fd_main, int *req_fd_main, int *resp_fd_main) {
   // create pipes and connect
   unlink(req_pipe_path);
   unlink(resp_pipe_path);
@@ -33,6 +34,7 @@ int kvs_connect(char *req_pipe_path, char *resp_pipe_path,
     perror("Failed to open named pipe");
     return 1;
   }
+  close(server_fd);
 
   char msg[121];
   memset(req_pipe_path + strlen(req_pipe_path), '\0',
@@ -59,6 +61,9 @@ int kvs_connect(char *req_pipe_path, char *resp_pipe_path,
     perror("Failed to open notification pipe");
     return 1;
   }
+  *notif_fd_main = notif_fd;
+  *req_fd_main = req_fd;
+  *resp_fd_main = resp_fd;
 
   // Send the message to the server
   if (write_all(server_fd, msg, sizeof(msg)) == -1) {
@@ -89,7 +94,8 @@ int kvs_connect(char *req_pipe_path, char *resp_pipe_path,
   return 0;
 }
 
-int kvs_disconnect(void) {
+int kvs_disconnect(int req_fd, int resp_fd, int notif_fd, char *req_pipe_path,
+                   char *resp_pipe_path, char *notif_pipe_path) {
   // close pipes and unlink pipe files
   if (write_all(req_fd, "2", 2) == -1) {
     perror("Failed to write to response pipe");
@@ -106,6 +112,12 @@ int kvs_disconnect(void) {
     perror("Failed to write to response pipe");
     return 1;
   }
+  close(req_fd);
+  close(resp_fd);
+  close(notif_fd);
+  unlink(req_pipe_path);
+  unlink(resp_pipe_path);
+  unlink(notif_pipe_path);
   return 0;
 }
 

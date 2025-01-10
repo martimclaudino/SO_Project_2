@@ -31,6 +31,8 @@ void register_subscribe(int fd, HashTable *ht, const char key);
 
 int register_unsubscribe(int fd, HashTable *ht, const char key);
 
+int kvs_disconnect_server(int req_fd, int resp_fd, int notif_fd);
+
 /// Appends a new key value pair to the hash table.
 /// @param ht Hash table to be modified.
 /// @param key Key of the pair to be written.

@@ -258,9 +258,10 @@ void *respond_client(void *buffer0) {
     char key[40];
     strncpy(key, message_received + 1, 40);
     if (opcode2 == 2) {
+      kvs_disconnect_server(req_fd, resp_fd, notif_fd);
       // disconnect
     } else if (opcode2 == 3) {
-      int res = subscribe(req_fd, (const char)*key);
+      int res = subscribe(notif_fd, (const char)*key);
       char message_sent[2];
       message_sent[0] = opcode2;
       message_sent[1] = (char)res;
@@ -269,7 +270,7 @@ void *respond_client(void *buffer0) {
         return NULL;
       }
     } else if (opcode2 == 4) {
-      int res2 = unsubscribe(req_fd, (const char)*key);
+      int res2 = unsubscribe(notif_fd, (const char)*key);
       char transmission[2];
       transmission[0] = opcode2;
       transmission[1] = (char)res2;
