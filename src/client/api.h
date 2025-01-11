@@ -15,8 +15,9 @@ int kvs_connect(char *req_pipe_path, char *resp_pipe_path,
                 int *notif_fd_main, int *req_fd_main, int *resp_fd_main);
 /// Disconnects from an KVS server.
 /// @return 0 in case of success, 1 otherwise.
-int kvs_disconnect(int req_fd, int resp_fd, int notif_fd, char *req_pipe_path,
-                   char *resp_pipe_path, char *notif_pipe_path);
+int kvs_disconnect(/* int req_fd, int resp_fd, int notif_fd, char *req_pipe_path,
+                   char *resp_pipe_path, char *notif_pipe_path */
+);
 
 /// Requests a subscription for a key
 /// @param key Key to be subscribed
@@ -32,4 +33,4 @@ int kvs_subscribe(const char *key);
 
 int kvs_unsubscribe(const char *key);
 
-#endif  // CLIENT_API_H
+#endif // CLIENT_API_H
