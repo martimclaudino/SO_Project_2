@@ -1,17 +1,17 @@
-#include <dirent.h> // Para manipulação de diretórios
-#include <errno.h>  // Para interpretação de erros
-#include <fcntl.h>  // Para open()
+#include <dirent.h>  // Para manipulação de diretórios
+#include <errno.h>   // Para interpretação de erros
+#include <fcntl.h>   // Para open()
 #include <limits.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h> // Para funções de manipulação de strings
+#include <string.h>  // Para funções de manipulação de strings
 #include <sys/stat.h>
-#include <sys/types.h> // Para tipos POSIX básicos
+#include <sys/types.h>  // Para tipos POSIX básicos
 #include <sys/wait.h>
 #include <unistd.h>
-#include <unistd.h> // Para write()
+#include <unistd.h>  // Para write()
 
 #include "../common/io.h"
 #include "constants.h"
@@ -21,8 +21,7 @@
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
-typedef struct
-{
+typedef struct {
   char *job_path;
   size_t pathLength;
   int bcks_max;
@@ -30,8 +29,7 @@ typedef struct
   int *thread_index;
 } FilePath;
 
-typedef struct
-{
+typedef struct {
   char *req_pipe_path;
   char *resp_pipe_path;
   char buffer[121];
@@ -55,19 +53,16 @@ char queue[MAX_SESSION_COUNT][121];
 sem_t full;
 sem_t empty;
 
-int subscribe(int fd, const char key)
-{
+int subscribe(int fd, const char key) {
   int check = check_if_pair_exists(key);
-  if (check == 1)
-  {
+  if (check == 1) {
     kvs_subscribe(fd, key);
   }
   return check;
   // devolve 0 ou 1 0->key n existe na hashtable 1->key existe na hashtable
 }
 
-int unsubscribe(int fd, char key)
-{
+int unsubscribe(int fd, char key) {
   // devolve 0 ou 1 0->subscricao existia e foi removida 1->subscrição nao
   // existia
   int check = kvs_unsubscribe(fd, key);
@@ -77,17 +72,14 @@ int unsubscribe(int fd, char key)
 
 void *respond_client();
 
-void write_msg(char op_code, char *req_pipe, char *resp_pipe,
-               char *notif_pipe)
-{
+void write_msg(char *req_pipe, char *resp_pipe, char *notif_pipe) {
   sem_wait(&empty);
   pthread_mutex_lock(&sem_mutex);
   memcpy(queue[insert_index], "1", 1);
   memcpy(queue[insert_index] + 1, req_pipe, 40);
   memcpy(queue[insert_index] + 41, resp_pipe, 40);
   memcpy(queue[insert_index] + 81, notif_pipe, 40);
-  for (int i = 0; i < 121; i++)
-  {
+  for (int i = 0; i < 121; i++) {
     if (queue[insert_index][i] == '\0')
       printf("\\0");
     else
@@ -101,8 +93,7 @@ void write_msg(char op_code, char *req_pipe, char *resp_pipe,
   sem_post(&full);
 }
 
-void read_msg(char *Msg)
-{
+void read_msg(char *Msg) {
   sem_wait(&full);
   pthread_mutex_lock(&sem_mutex);
   memcpy(Msg, queue[remove_index], 121);
@@ -113,16 +104,13 @@ void read_msg(char *Msg)
   sem_post(&empty);
 }
 
-int main(int argc, char *argv[])
-{
-  if (argc != 5)
-  {
+int main(int argc, char *argv[]) {
+  if (argc != 5) {
     fprintf(stderr, "Usage: %s <directory> <n_backups>\n", argv[0]);
     return 1;
   }
 
-  if (kvs_init())
-  {
+  if (kvs_init()) {
     fprintf(stderr, "Failed to initialize KVS\n");
     return 1;
   }
@@ -137,8 +125,7 @@ int main(int argc, char *argv[])
   char *server_pipe_path = argv[4];
 
   unlink(server_pipe_path);
-  if (mkfifo(server_pipe_path, 0666) < 0)
-  {
+  if (mkfifo(server_pipe_path, 0666) < 0) {
     perror("Failed to create named pipe");
     return 1;
   }
@@ -150,13 +137,10 @@ int main(int argc, char *argv[])
   pthread_t threads[file_num];
 
   DIR *dir = opendir(directory);
-  if (dir)
-  {
+  if (dir) {
     struct dirent *entry;
-    while ((entry = readdir(dir)))
-    {
-      if (strstr(entry->d_name, ".job"))
-      {
+    while ((entry = readdir(dir))) {
+      if (strstr(entry->d_name, ".job")) {
         size_t pathLength = strlen(directory) + strlen(entry->d_name) + 2;
 
         file_paths[thread_counter].job_path =
@@ -169,11 +153,9 @@ int main(int argc, char *argv[])
         file_paths[thread_counter].bcks_max = bcks_max;
         file_paths[thread_counter].dir = dir;
 
-        while (1)
-        {
+        while (1) {
           pthread_mutex_lock(&thread_lock);
-          if (running_threads < MAX_THREADS)
-          {
+          if (running_threads < MAX_THREADS) {
             int *thread_index = malloc(sizeof(int));
             *thread_index = thread_counter;
             file_paths[thread_counter].thread_index = thread_index;
@@ -188,14 +170,11 @@ int main(int argc, char *argv[])
         }
       }
     }
-  }
-  else
-  {
+  } else {
     printf("Erro ao abrir o diretório\n");
   }
   int pipe_fd;
-  if ((pipe_fd = open(server_pipe_path, O_RDONLY)) < 0)
-  {
+  if ((pipe_fd = open(server_pipe_path, O_RDONLY)) < 0) {
     perror("Failed to open named pipe");
     return 1;
   }
@@ -205,8 +184,7 @@ int main(int argc, char *argv[])
 
   pthread_t t_client[MAX_SESSION_COUNT];
 
-  for (int i = 0; i < MAX_SESSION_COUNT; i++)
-  {
+  for (int i = 0; i < MAX_SESSION_COUNT; i++) {
     pthread_create(&t_client[i], NULL, respond_client, NULL);
   }
 
@@ -229,53 +207,45 @@ int main(int argc, char *argv[])
     printf("add_to_queue: %s\n", add_to_queue);
     write_msg(add_to_queue);
   } */
-  while (1)
-  {
+  while (1) {
     // printf("Waiting for client\n");
     char op_code = -1;
     char req_pipe[41];
     char resp_pipe[41];
     char notify_pipe[41];
 
-    if (read_all(pipe_fd, &op_code, 1, NULL) == -1)
-    {
+    if (read_all(pipe_fd, &op_code, 1, NULL) == -1) {
       fprintf(stderr, "Failed to read message from client opcode\n");
       return 1;
     }
     // printf("op_code: %c\n", op_code);
-    if (op_code == '1')
-    {
+    if (op_code == '1') {
       printf("entrou no if do opcode\n");
-      if (read_all(pipe_fd, req_pipe, 40, NULL) != 1)
-      {
+      if (read_all(pipe_fd, req_pipe, 40, NULL) != 1) {
         fprintf(stderr, "Failed to read message from client req\n");
         return 1;
       }
       req_pipe[40] = '\0';
-      if (read_all(pipe_fd, resp_pipe, 40, NULL) != 1)
-      {
+      if (read_all(pipe_fd, resp_pipe, 40, NULL) != 1) {
         fprintf(stderr, "Failed to read message from client resp\n");
         return 1;
       }
       resp_pipe[40] = '\0';
-      if (read_all(pipe_fd, notify_pipe, 40, NULL) != 1)
-      {
+      if (read_all(pipe_fd, notify_pipe, 40, NULL) != 1) {
         fprintf(stderr, "Failed to read message from client notif\n");
         return 1;
       }
       notify_pipe[40] = '\0';
-      write_msg(op_code, req_pipe, resp_pipe, notify_pipe);
+      write_msg(req_pipe, resp_pipe, notify_pipe);
     }
   }
 
   // receives the client connection through the request pipe
 
-  for (int i = 0; i < thread_counter; i++)
-  {
+  for (int i = 0; i < thread_counter; i++) {
     pthread_join(threads[i], NULL);
   }
-  for (int i = 0; i < file_num; i++)
-  {
+  for (int i = 0; i < file_num; i++) {
     free(file_paths[i].job_path);
   }
   free(file_paths);
@@ -285,23 +255,19 @@ int main(int argc, char *argv[])
   kvs_terminate();
 }
 
-int count_job_files(const char *directory)
-{
+int count_job_files(const char *directory) {
   DIR *dir = opendir(directory);
-  if (!dir)
-  {
+  if (!dir) {
     perror("Failed to open directory");
-    return -1; // Error code
+    return -1;  // Error code
   }
 
   int job_file_count = 0;
   struct dirent *entry;
 
-  while ((entry = readdir(dir)))
-  {
+  while ((entry = readdir(dir))) {
     // Check if the file ends with ".job"
-    if (strstr(entry->d_name, ".job"))
-    {
+    if (strstr(entry->d_name, ".job")) {
       job_file_count++;
     }
   }
@@ -310,10 +276,8 @@ int count_job_files(const char *directory)
   return job_file_count;
 }
 
-void *respond_client()
-{
-  while (1)
-  {
+void *respond_client() {
+  while (1) {
     // Spliting the 3 client paths
 
     char client_msg[121];
@@ -335,20 +299,17 @@ void *respond_client()
     printf("resp_pipe_path: %s\n", resp_pipe_path);
     printf("notif_pipe_path: %s\n", notif_pipe_path); */
     // Opening the pipes
-    if ((resp_fd = open(resp_pipe_path, O_WRONLY)) < 0)
-    {
+    if ((resp_fd = open(resp_pipe_path, O_WRONLY)) < 0) {
       perror("Failed to open response pipe");
       return NULL;
     }
 
-    if ((notif_fd = open(notif_pipe_path, O_WRONLY)) < 0)
-    {
+    if ((notif_fd = open(notif_pipe_path, O_WRONLY)) < 0) {
       write_all(resp_fd, opcode + "1", 2);
       perror("Failed to open notification pipe");
       return NULL;
     }
-    if ((req_fd = open(req_pipe_path, O_RDONLY)) < 0)
-    {
+    if ((req_fd = open(req_pipe_path, O_RDONLY)) < 0) {
       write_all(resp_fd, opcode + "1", 2);
       perror("Failed to open request pipe");
       return NULL;
@@ -360,39 +321,28 @@ void *respond_client()
     connection_output[1] = '\0';
     strcat(connection_output, "0");
 
-    if (write_all(resp_fd, connection_output, 3) == -1)
-    {
+    if (write_all(resp_fd, connection_output, 3) == -1) {
       perror("Failed to write to response pipe");
       return NULL;
     }
 
-    while (1)
-    {
-      /* char message_received[41];
-      if (read_all(req_fd, message_received, 41, NULL) == -1) {
-        fprintf(stderr, "Failed to read message from client\n");
-        return NULL;
-      } */
+    while (1) {
       // Spliting the 3 client paths
       char opcode2;
       printf("antes do opcode\n");
-      if (read_all(req_fd, &opcode2, 1, NULL) == -1)
-      {
+      if (read_all(req_fd, &opcode2, 1, NULL) == -1) {
         fprintf(stderr, "Failed to read message from client\n");
         break;
       }
       char key[40];
+      printf("opcode2: %c\n", opcode2);
       printf("passou o opcode\n");
-      if (opcode2 == 2)
-      {
+      if (opcode2 == '2') {
         kvs_disconnect_server(req_fd, resp_fd, notif_fd);
         break;
         // disconnect
-      }
-      else if (opcode2 == 3)
-      {
-        if (read_all(req_fd, key, 40, NULL) == -1)
-        {
+      } else if (opcode2 == '3') {
+        if (read_all(req_fd, key, 40, NULL) == -1) {
           fprintf(stderr, "Failed to read message from client\n");
           break;
         }
@@ -402,19 +352,17 @@ void *respond_client()
         char message_sent[3];
         message_sent[0] = opcode2;
         message_sent[1] = '\0';
-        char res_trans;
+        char res_trans[2];
+        res_trans[0] = (char)res;
+        res_trans[1] = '\0';
         strcat(message_sent, res_trans);
         printf("fez a mensagem, quase a escrever\n");
-        if (write_all(resp_fd, message_sent, 3) == -1)
-        {
+        if (write_all(resp_fd, message_sent, 3) == -1) {
           perror("Failed to write to response pipe");
           break;
         }
-      }
-      else if (opcode2 == 4)
-      {
-        if (read_all(req_fd, key, 40, NULL) == -1)
-        {
+      } else if (opcode2 == '4') {
+        if (read_all(req_fd, key, 40, NULL) == -1) {
           fprintf(stderr, "Failed to read message from client\n");
           break;
         }
@@ -422,8 +370,7 @@ void *respond_client()
         char transmission[2];
         transmission[0] = opcode2;
         transmission[1] = (char)res2;
-        if (write_all(resp_fd, transmission, 2) == -1)
-        {
+        if (write_all(resp_fd, transmission, 2) == -1) {
           perror("Failed to write to response pipe");
           break;
         }
@@ -432,8 +379,7 @@ void *respond_client()
   }
 }
 
-void *process_file(void *counter)
-{
+void *process_file(void *counter) {
   // Process .job file
   int index = *((int *)counter);
   free(counter);
@@ -444,140 +390,124 @@ void *process_file(void *counter)
   DIR *dir = file0.dir;
 
   int fd = open(job_path, O_RDONLY);
-  if (fd == -1)
-  {
+  if (fd == -1) {
     perror("Failed to open job file");
     goto cleanup;
   }
 
   char out_path[MAX_JOB_FILE_NAME_SIZE];
   char *dot = strrchr(job_path, '.');
-  if (dot != NULL)
-  {
-    *dot = '\0'; // Removes ".job"
+  if (dot != NULL) {
+    *dot = '\0';  // Removes ".job"
   }
 
   snprintf(out_path, pathLength, "%s.out", job_path);
   int out_fd = open(out_path, O_WRONLY | O_CREAT, 0644);
   int finish = 0;
   int bck_counter = 1;
-  while (finish != 1)
-  {
+  while (finish != 1) {
     char keys[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
     char values[MAX_WRITE_SIZE][MAX_STRING_SIZE] = {0};
     unsigned int delay;
     size_t num_pairs;
 
-    switch (get_next(fd))
-    {
-    case CMD_WRITE:
-      num_pairs =
-          parse_write(fd, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
-      if (num_pairs == 0)
-      {
+    switch (get_next(fd)) {
+      case CMD_WRITE:
+        num_pairs =
+            parse_write(fd, keys, values, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+        if (num_pairs == 0) {
+          fprintf(stderr, "Invalid command. See HELP for usage\n");
+          continue;
+        }
+
+        if (kvs_write(num_pairs, keys, values)) {
+          fprintf(stderr, "Failed to write pair\n");
+        }
+
+        break;
+
+      case CMD_READ:
+        num_pairs =
+            parse_read_delete(fd, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+
+        if (num_pairs == 0) {
+          fprintf(stderr, "Invalid command. See HELP for usage\n");
+          continue;
+        }
+
+        if (kvs_read(num_pairs, keys, out_fd)) {
+          fprintf(stderr, "Failed to read pair\n");
+        }
+        break;
+
+      case CMD_DELETE:
+        num_pairs =
+            parse_read_delete(fd, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+
+        if (num_pairs == 0) {
+          fprintf(stderr, "Invalid command. See HELP for usage\n");
+          continue;
+        }
+
+        if (kvs_delete(num_pairs, keys, out_fd)) {
+          fprintf(stderr, "Failed to delete pair\n");
+        }
+        break;
+
+      case CMD_SHOW:
+
+        kvs_show(out_fd);
+        break;
+
+      case CMD_WAIT:
+        if (parse_wait(fd, &delay, NULL) == -1) {
+          fprintf(stderr, "Invalid command. See HELP for usage\n");
+          continue;
+        }
+
+        if (delay > 0) {
+          kvs_wait(delay);
+        }
+        break;
+
+      case CMD_BACKUP:
+        pthread_mutex_lock(&backup_lock);
+        if (bck_executing == bcks_max) {
+          wait(NULL);
+          (bck_executing)--;
+        } else {
+          (bck_executing)++;
+        }
+
+        if (kvs_backup(fd, out_fd, job_path, pathLength, &bck_counter, dir)) {
+          fprintf(stderr, "Failed to perform backup.\n");
+        }
+        pthread_mutex_unlock(&backup_lock);
+
+        break;
+      case CMD_INVALID:
         fprintf(stderr, "Invalid command. See HELP for usage\n");
-        continue;
-      }
+        break;
 
-      if (kvs_write(num_pairs, keys, values))
-      {
-        fprintf(stderr, "Failed to write pair\n");
-      }
+      case CMD_HELP:
+        printf(
+            "Available commands:\n"
+            "  WRITE [(key,value),(key2,value2),...]\n"
+            "  READ [key,key2,...]\n"
+            "  DELETE [key,key2,...]\n"
+            "  SHOW\n"
+            "  WAIT <delay_ms>\n"
+            "  BACKUP\n"
+            "  HELP\n");
 
-      break;
+        break;
 
-    case CMD_READ:
-      num_pairs =
-          parse_read_delete(fd, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
+      case CMD_EMPTY:
+        break;
 
-      if (num_pairs == 0)
-      {
-        fprintf(stderr, "Invalid command. See HELP for usage\n");
-        continue;
-      }
-
-      if (kvs_read(num_pairs, keys, out_fd))
-      {
-        fprintf(stderr, "Failed to read pair\n");
-      }
-      break;
-
-    case CMD_DELETE:
-      num_pairs =
-          parse_read_delete(fd, keys, MAX_WRITE_SIZE, MAX_STRING_SIZE);
-
-      if (num_pairs == 0)
-      {
-        fprintf(stderr, "Invalid command. See HELP for usage\n");
-        continue;
-      }
-
-      if (kvs_delete(num_pairs, keys, out_fd))
-      {
-        fprintf(stderr, "Failed to delete pair\n");
-      }
-      break;
-
-    case CMD_SHOW:
-
-      kvs_show(out_fd);
-      break;
-
-    case CMD_WAIT:
-      if (parse_wait(fd, &delay, NULL) == -1)
-      {
-        fprintf(stderr, "Invalid command. See HELP for usage\n");
-        continue;
-      }
-
-      if (delay > 0)
-      {
-        kvs_wait(delay);
-      }
-      break;
-
-    case CMD_BACKUP:
-      pthread_mutex_lock(&backup_lock);
-      if (bck_executing == bcks_max)
-      {
-        wait(NULL);
-        (bck_executing)--;
-      }
-      else
-      {
-        (bck_executing)++;
-      }
-
-      if (kvs_backup(fd, out_fd, job_path, pathLength, &bck_counter, dir))
-      {
-        fprintf(stderr, "Failed to perform backup.\n");
-      }
-      pthread_mutex_unlock(&backup_lock);
-
-      break;
-    case CMD_INVALID:
-      fprintf(stderr, "Invalid command. See HELP for usage\n");
-      break;
-
-    case CMD_HELP:
-      printf(
-          "Available commands:\n"
-          "  WRITE [(key,value),(key2,value2),...]\n"
-          "  READ [key,key2,...]\n"
-          "  DELETE [key,key2,...]\n"
-          "  SHOW\n"
-          "  WAIT <delay_ms>\n"
-          "  BACKUP\n"
-          "  HELP\n");
-
-      break;
-
-    case CMD_EMPTY:
-      break;
-
-    case EOC:
-      finish = 1;
-      break;
+      case EOC:
+        finish = 1;
+        break;
     }
   }
 cleanup:
