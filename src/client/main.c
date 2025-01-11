@@ -64,14 +64,11 @@ int main(int argc, char *argv[]) {
   }
   printf("Main do client \n");
 
-  char req_pipe_path[40];
-  memset(req_pipe_path, 0, sizeof(req_pipe_path));
+  char req_pipe_path[40] = {0};
   strcpy(req_pipe_path, "/tmp/req");
-  char resp_pipe_path[40];
-  memset(resp_pipe_path, 0, sizeof(resp_pipe_path));
+  char resp_pipe_path[40] = {0};
   strcpy(resp_pipe_path, "/tmp/resp");
-  char notif_pipe_path[40];
-  memset(notif_pipe_path, 0, sizeof(notif_pipe_path));
+  char notif_pipe_path[40] = {0};
   strcpy(notif_pipe_path, "/tmp/notif");
 
   char keys[MAX_NUMBER_SUB][MAX_STRING_SIZE] = {0};

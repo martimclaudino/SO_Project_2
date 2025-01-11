@@ -41,18 +41,30 @@ int kvs_connect(char *req_pipe_path, char *resp_pipe_path,
   }
   printf("abriu server_fd\n");
 
-  char msg[121] = {0};
+  char msg[121] = {"\0"};
 
   // Concatenate the paths into msg
-  snprintf(msg, sizeof(msg), "1%s%s%s", req_pipe_path, resp_pipe_path,
-           notif_pipe_path);
-  printf(
-      "mensagem: %s\nreq_pipe_path: %s\nresp_pipe_path: %s\nnotif_pipe_path: "
-      "%s\n",
-      msg, req_pipe_path, resp_pipe_path, notif_pipe_path);
 
+  memcpy(msg, "1", 1);
+  memcpy(msg + 1, req_pipe_path, 40);
+  memcpy(msg + 41, resp_pipe_path, 40);
+  memcpy(msg + 81, notif_pipe_path, 40);
+  for (int i = 0; i < 121; i++) {
+    if (msg[i] == '\0')
+      printf("\\0");
+    else
+      printf("%c", msg[i]);
+  }
+
+  /* snprintf(msg, sizeof(msg), "1%s%s%s", req_pipe_path, resp_pipe_path,
+           notif_pipe_path); */
+  /*  printf(
+       "mensagem: %s\nreq_pipe_path: %s\nresp_pipe_path: %s\nnotif_pipe_path: "
+       "%s\n",
+       msg, req_pipe_path, resp_pipe_path, notif_pipe_path);
+  */
   // Send the message to the server
-  if (write_all(server_fd, msg, sizeof(msg)) == -1) {
+  if (write_all(server_fd, msg, 121) == -1) {
     fprintf(stderr, "Failed to send message to server\n");
     return 1;
   }

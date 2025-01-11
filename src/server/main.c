@@ -72,11 +72,23 @@ int unsubscribe(int fd, char key) {
 
 void *respond_client();
 
-void write_msg(char *Msg) {
+void write_msg(char op_code, char *req_pipe, char *resp_pipe,
+               char *notif_pipe) {
   sem_wait(&empty);
   pthread_mutex_lock(&sem_mutex);
-  strcpy(queue[insert_index], Msg);
-  // se der merda no futuro adicionar \0 no final da string
+  memcpy(queue[insert_index], "1", 1);
+  memcpy(queue[insert_index] + 1, req_pipe, 41);
+  memcpy(queue[insert_index] + 42, resp_pipe, 41);
+  memcpy(queue[insert_index] + 83, notif_pipe, 41);
+  for (int i = 0; i < 121; i++) {
+    if (queue[insert_index][i] == '\0')
+      printf("\\0");
+    else
+      printf("%c", queue[insert_index][i]);
+  }
+
+  // strcpy(queue[insert_index], Msg);
+  //  se der merda no futuro adicionar \0 no final da string
   insert_index = (insert_index + 1) % MAX_SESSION_COUNT;
   pthread_mutex_unlock(&sem_mutex);
   sem_post(&full);
@@ -85,7 +97,8 @@ void write_msg(char *Msg) {
 void read_msg(char *Msg) {
   sem_wait(&full);
   pthread_mutex_lock(&sem_mutex);
-  strcpy(Msg, queue[remove_index]);
+  memcpy(Msg, queue[remove_index], 121);
+  // strcpy(Msg, queue[remove_index]);
   queue[remove_index][0] = '\0';
   remove_index = (remove_index + 1) % MAX_SESSION_COUNT;
   pthread_mutex_unlock(&sem_mutex);
@@ -176,17 +189,53 @@ int main(int argc, char *argv[]) {
     pthread_create(&t_client[i], NULL, respond_client, NULL);
   }
 
-  while (1) {
+  /* while (1) {
     // printf("Waiting for client\n");
-    char add_to_queue[121];
+    char add_to_queue[121] = {0};
 
     if (read_all(pipe_fd, add_to_queue, 121, NULL) == -1) {
       fprintf(stderr, "Failed to read message from client\n");
       return 1;
     }
 
-    // printf("add_to_queue: %s\n", add_to_queue);
+    for (int i = 0; i < 121; i++) {
+      if (add_to_queue[i] == '\0')
+        printf("\\0");
+      else
+        printf("%c", add_to_queue[i]);
+    }
+
+    printf("add_to_queue: %s\n", add_to_queue);
     write_msg(add_to_queue);
+  } */
+  while (1) {
+    // printf("Waiting for client\n");
+    char op_code;
+    char req_pipe[41];
+    char resp_pipe[41];
+    char notify_pipe[41];
+
+    if (read_all(pipe_fd, &op_code, 1, NULL) == -1) {
+      fprintf(stderr, "Failed to read message from client\n");
+      return 1;
+    }
+
+    if (read_all(pipe_fd, req_pipe, 40, NULL) != 1) {
+      fprintf(stderr, "Failed to read message from client\n");
+      return 1;
+    }
+    req_pipe[40] = '\0';
+    if (read_all(pipe_fd, resp_pipe, 40, NULL) != 1) {
+      fprintf(stderr, "Failed to read message from client\n");
+      return 1;
+    }
+    resp_pipe[40] = '\0';
+    if (read_all(pipe_fd, notify_pipe, 40, NULL) != 1) {
+      fprintf(stderr, "Failed to read message from client\n");
+      return 1;
+    }
+    notify_pipe[40] = '\0';
+    write_msg(op_code, req_pipe, resp_pipe, notify_pipe);
   }
 
   // receives the client connection through the request pipe
@@ -232,17 +281,23 @@ void *respond_client() {
     char client_msg[121];
     read_msg(client_msg);
     printf("client_msg: %s\n", client_msg);
+    for (int i = 0; i < 121; i++) {
+      if (client_msg[i] == '\0')
+        printf("\\0");
+      else
+        printf("%c", client_msg[i]);
+    }
     int req_fd, resp_fd, notif_fd;
     char opcode = client_msg[0];
-    char req_pipe_path[11];
+    char req_pipe_path[41];
     char resp_pipe_path[41];
     char notif_pipe_path[41];
-    strncpy(req_pipe_path, client_msg + 1, 10);
-    req_pipe_path[10] = '\0';
-    strncpy(resp_pipe_path, client_msg + 11, 11);
-    resp_pipe_path[11] = '\0';
-    strncpy(notif_pipe_path, client_msg + 22, 12);
-    notif_pipe_path[12] = '\0';
+    strncpy(req_pipe_path, client_msg + 1, 41);
+    req_pipe_path[40] = '\0';
+    strncpy(resp_pipe_path, client_msg + 42, 41);
+    resp_pipe_path[40] = '\0';
+    strncpy(notif_pipe_path, client_msg + 83, 41);
+    notif_pipe_path[40] = '\0';
     printf("req_pipe_path: %s\n", req_pipe_path);
     printf("resp_pipe_path: %s\n", resp_pipe_path);
     printf("notif_pipe_path: %s\n", notif_pipe_path);
@@ -277,41 +332,41 @@ void *respond_client() {
         return NULL;
       } */
       // Spliting the 3 client paths
-      char opcode2[1];
+      char opcode2;
       if (read_all(req_fd, opcode2, 1, NULL) == -1) {
         fprintf(stderr, "Failed to read message from client\n");
-        return NULL;
+        break;
       }
       char key[40];
-      if (opcode2[0] == 2) {
+      if (opcode2 == 2) {
         kvs_disconnect_server(req_fd, resp_fd, notif_fd);
         break;
         // disconnect
-      } else if (opcode2[0] == 3) {
+      } else if (opcode2 == 3) {
         if (read_all(req_fd, key, 40, NULL) == -1) {
           fprintf(stderr, "Failed to read message from client\n");
-          return NULL;
+          break;
         }
         int res = subscribe(notif_fd, (const char)*key);
         char message_sent[2];
-        message_sent[0] = opcode2[0];
+        message_sent[0] = opcode2;
         message_sent[1] = (char)res;
         if (write_all(resp_fd, message_sent, 2) == -1) {
           perror("Failed to write to response pipe");
-          return NULL;
+          break;
         }
-      } else if (opcode2[0] == 4) {
+      } else if (opcode2 == 4) {
         if (read_all(req_fd, key, 40, NULL) == -1) {
           fprintf(stderr, "Failed to read message from client\n");
-          return NULL;
+          break;
         }
         int res2 = unsubscribe(notif_fd, (const char)*key);
         char transmission[2];
-        transmission[0] = opcode2[0];
+        transmission[0] = opcode2;
         transmission[1] = (char)res2;
         if (write_all(resp_fd, transmission, 2) == -1) {
           perror("Failed to write to response pipe");
-          return NULL;
+          break;
         }
       }
     }
