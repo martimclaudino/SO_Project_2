@@ -1,15 +1,12 @@
-[(l,leonel)(v,KVSERROR)(x,KVSERROR)(z,KVSERROR)]
+[(l,KVSERROR)(v,KVSERROR)(x,KVSERROR)(z,KVSERROR)]
 (a, anna)
 (b, bernardo)
 (c, carlota)
 (d, dinis)
 (e, edmundo)
 (f, felix)
+(g, gabriela)
 (h, helio)
-(i, ignacio)
-(j, joana)
-(k, katia)
-(l, leonel)
 [(c,KVSERROR)]
 (a, anna)
 (b, bernardo)
@@ -19,6 +16,9 @@
 (h, helio)
 (i, ignacio)
 (j, joana)
+(k, katia)
+(l, leonel)
+ joana)
 (k, katia)
 (l, leonel)
 )
