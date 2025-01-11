@@ -77,7 +77,6 @@ void write_msg(char *Msg) {
   pthread_mutex_lock(&sem_mutex);
   strcpy(queue[insert_index], Msg);
   // se der merda no futuro adicionar \0 no final da string
-  printf("insert_index: %d\n", insert_index);
   insert_index = (insert_index + 1) % MAX_SESSION_COUNT;
   pthread_mutex_unlock(&sem_mutex);
   sem_post(&full);
@@ -88,7 +87,6 @@ void read_msg(char *Msg) {
   pthread_mutex_lock(&sem_mutex);
   strcpy(Msg, queue[remove_index]);
   queue[remove_index][0] = '\0';
-  printf("remove_index: %d\n", remove_index);
   remove_index = (remove_index + 1) % MAX_SESSION_COUNT;
   pthread_mutex_unlock(&sem_mutex);
   sem_post(&empty);
@@ -179,7 +177,7 @@ int main(int argc, char *argv[]) {
   }
 
   while (1) {
-    printf("Waiting for client\n");
+    // printf("Waiting for client\n");
     char add_to_queue[121];
 
     if (read_all(pipe_fd, add_to_queue, 121, NULL) == -1) {
@@ -187,7 +185,7 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
-    printf("add_to_queue: %s\n", add_to_queue);
+    // printf("add_to_queue: %s\n", add_to_queue);
     write_msg(add_to_queue);
   }
 
@@ -233,19 +231,18 @@ void *respond_client() {
 
     char client_msg[121];
     read_msg(client_msg);
-    printf("sem not working\n");
     printf("client_msg: %s\n", client_msg);
     int req_fd, resp_fd, notif_fd;
     char opcode = client_msg[0];
-    char req_pipe_path[41];
+    char req_pipe_path[11];
     char resp_pipe_path[41];
     char notif_pipe_path[41];
-    strncpy(req_pipe_path, client_msg + 1, 40);
-    req_pipe_path[40] = '\0';
-    strncpy(resp_pipe_path, client_msg + 41, 40);
-    resp_pipe_path[40] = '\0';
-    strncpy(notif_pipe_path, client_msg + 81, 40);
-    notif_pipe_path[40] = '\0';
+    strncpy(req_pipe_path, client_msg + 1, 10);
+    req_pipe_path[10] = '\0';
+    strncpy(resp_pipe_path, client_msg + 11, 11);
+    resp_pipe_path[11] = '\0';
+    strncpy(notif_pipe_path, client_msg + 22, 12);
+    notif_pipe_path[12] = '\0';
     printf("req_pipe_path: %s\n", req_pipe_path);
     printf("resp_pipe_path: %s\n", resp_pipe_path);
     printf("notif_pipe_path: %s\n", notif_pipe_path);
@@ -267,6 +264,7 @@ void *respond_client() {
     }
 
     // Connection successful message
+    printf("opcode: %c\n", opcode);
     if (write_all(resp_fd, opcode + "0", 2) == -1) {
       perror("Failed to write to response pipe");
       return NULL;

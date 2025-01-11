@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
   }
 
   // TODO open pipes
-
+  printf("Connected to server\n");
   while (1) {
     switch (get_next(STDIN_FILENO)) {
       case CMD_DISCONNECT:
