@@ -25,33 +25,33 @@ void *notif_func(void *fd)
     perror("Failed to open notification pipe");
     return NULL;
   }
-  /*
-    char buffer[121];
-    while (1) {
-      if (read_all(notif_fd, buffer, 121, NULL) == -1) {
-        fprintf(stderr, "Failed to read message from client\n");
-        return NULL;
-      }
 
-      char opcode = buffer[0];
-      char key[40];
-      strncpy(key, buffer + 1, 40);
-      if (opcode == 5) {
-        printf("Notification received: %s\n", key);
-      }
-    } */
-  char buffer[82];
+  char buffer[83];
   while (1)
   {
+    char opcode;
+    if (read_all(notif_fd, &opcode, 1, NULL) == -1)
+    {
+      fprintf(stderr, "Failed to read message from client\n");
+      return NULL;
+    }
+
+    if (opcode == '0')
+    {
+      pthread_exit(0);
+      return NULL;
+    }
+
+    char key[41];
+    char value[41];
     if (read_all(notif_fd, buffer, 82, NULL) == -1)
     {
       fprintf(stderr, "Failed to read message from client\n");
       return NULL;
     }
-    char key[41];
-    char value[41];
-    strncpy(key, buffer, 41);
-    strncpy(value, buffer + 41, 41);
+    buffer[82] = '\0';
+    strncpy(key, buffer + 1, 41);
+    strncpy(value, buffer + 42, 41);
     char message[86];
     snprintf(message, sizeof(message), "(%s, %s)\n", key, value);
     if (write_all(1, message, 86) == -1)
