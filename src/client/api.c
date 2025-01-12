@@ -157,17 +157,22 @@ int kvs_subscribe(const char *key)
   }
   // Wait for response
   char server_subscription_result[3];
-  read_all(resp_fd, server_subscription_result, 3, NULL);
+  if (read_all(resp_fd, server_subscription_result, 3, NULL) == -1)
+  {
+    perror("Failed to read from response pipe");
+    return 1;
+  }
+  printf("server subscription result: ");
 
   char message[45];
   snprintf(message, sizeof(message),
            "Server returned %s for operation: subscribe\n", server_subscription_result);
-  if (write_all(1, message, 45) == -1)
+  if (write_all(1, message, 44) == -1)
   {
     perror("Failed to write to response pipe");
     return 1;
   }
-  if (server_subscription_result[1] == '1')
+  if (server_subscription_result[1] == '0')
   {
     return 1;
   }
@@ -177,24 +182,39 @@ int kvs_subscribe(const char *key)
 int kvs_unsubscribe(const char *key)
 {
   // send unsubscribe message to request pipe and wait for response in response
-  if (write_all(req_fd, "4" + *key, strlen(key) + 1) == -1)
+  char unsubscrition[41] = {0};
+  memcpy(unsubscrition, "4", 1);
+  memcpy(unsubscrition + 1, key, 40);
+
+  if (write_all(req_fd, unsubscrition, 41) == -1)
   {
     perror("Failed to write to response pipe");
     return 1;
   }
-  char response[2];
-  read_all(resp_fd, response, 2, NULL);
-  // printf("Server returned %c for operation: unsubscribe\n", response[1]); N
-  // SEI QUAL MANEIRA E PARA FAZER, COPILOT DISSE A 1º
-  char message[46];
+  char server_unsubscription_result[3];
+  if (read_all(resp_fd, server_unsubscription_result, 3, NULL) == -1)
+  {
+    perror("Failed to read from response pipe");
+    return 1;
+  }
+  for (int i = 0; i < 3; i++)
+  {
+    if (server_unsubscription_result[i] == '\0')
+      printf("\\0");
+    else
+      printf("%c", server_unsubscription_result[i]);
+  }
+  printf("\n");
+
+  char message[47];
   snprintf(message, sizeof(message),
-           "Server returned %d for operation: unsubscribe\n", response[1]);
+           "Server returned %s for operation: unsubscribe\n", server_unsubscription_result);
   if (write_all(1, message, 46) == -1)
   {
     perror("Failed to write to response pipe");
     return 1;
   }
-  if (response[1] == '1')
+  if (server_unsubscription_result[1] == '1')
   {
     return 1;
   }

@@ -7,7 +7,8 @@
 
 #include "../common/constants.h"
 
-typedef struct KeyNode {
+typedef struct KeyNode
+{
   char *key;
   char *value;
   struct KeyNode *next;
@@ -15,7 +16,8 @@ typedef struct KeyNode {
 
 } KeyNode;
 
-typedef struct HashTable {
+typedef struct HashTable
+{
   KeyNode *table[TABLE_SIZE];
   pthread_rwlock_t GlobalLock;
   pthread_rwlock_t rwlock[TABLE_SIZE];
@@ -27,9 +29,9 @@ struct HashTable *create_hash_table();
 
 int hash(const char *key);
 
-void register_subscribe(int fd, HashTable *ht, const char key);
+void register_subscribe(int fd, HashTable *ht, const char *key);
 
-int register_unsubscribe(int fd, HashTable *ht, const char key);
+int register_unsubscribe(int fd, HashTable *ht, const char *key);
 
 int kvs_disconnect_server(int req_fd, int resp_fd, int notif_fd);
 
@@ -56,4 +58,4 @@ int delete_pair(HashTable *ht, const char *key);
 /// @param ht Hash table to be deleted.
 void free_table(HashTable *ht);
 
-#endif  // KVS_H
+#endif // KVS_H

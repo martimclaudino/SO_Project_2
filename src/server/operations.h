@@ -58,4 +58,4 @@ void kvs_wait_backup();
 /// @param delay_us Delay in milliseconds.
 void kvs_wait(unsigned int delay_ms);
 
-#endif  // KVS_OPERATIONS_H
+#endif // KVS_OPERATIONS_H

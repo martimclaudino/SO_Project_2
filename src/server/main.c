@@ -69,13 +69,21 @@ int subscribe(int fd, const char key)
   return check;
 }
 
-int unsubscribe(int fd, char key)
+// Returns
+// 0 -> subscription existed and removed
+// 1 -> subscription didn't exist
+int unsubscribe(int fd, const char key)
 {
-  // devolve 0 ou 1 0->subscricao existia e foi removida 1->subscrição nao
-  // existia
-  int check = kvs_unsubscribe(fd, key);
+  int check_exists = check_if_pair_exists(key);
+  printf("check_exists do unsub: %d\n", check_exists);
+  printf("key do unsub: %c\n", key);
+  int check_unsub = 0;
+  if (check_exists == 1)
+  {
+    check_unsub = kvs_unsubscribe(fd, key);
+  }
 
-  return check;
+  return check_unsub;
 }
 
 void *respond_client();
@@ -384,7 +392,6 @@ void *respond_client()
       else if (opcode2 == '3')
       {
         char received_key[41];
-        printf("entrou no opcode do subscribe\n");
         if (read_all(req_fd, received_key, 40, NULL) == -1)
         {
           fprintf(stderr, "Failed to read message from client\n");
@@ -392,18 +399,23 @@ void *respond_client()
         }
         received_key[40] = '\0';
         strcpy(key, received_key);
-        printf("key: %s\n", key);
 
         int res = subscribe(notif_fd, (const char)*key);
-        printf("passou na função subscribe\n");
 
         char subscription_output[3];
         subscription_output[0] = opcode2;
-        subscription_output[1] = '\0';
-        subscription_output[2] = (char)res;
-        // snprintf(subscription_output, sizeof(subscription_output), "%c%d", opcode2, res);
+        subscription_output[1] = (char)(res + '0');
+        subscription_output[2] = '\0';
 
-        printf("subscription output: %s\n", subscription_output);
+        printf("subscription output: ");
+        for (int i = 0; i < 3; i++)
+        {
+          if (subscription_output[i] == '\0')
+            printf("\\0");
+          else
+            printf("%c", subscription_output[i]);
+        }
+        printf("\n");
 
         if (write_all(resp_fd, subscription_output, 3) == -1)
         {
@@ -413,16 +425,22 @@ void *respond_client()
       }
       else if (opcode2 == '4')
       {
+        char received_key[41];
         if (read_all(req_fd, key, 40, NULL) == -1)
         {
           fprintf(stderr, "Failed to read message from client\n");
           break;
         }
-        int res2 = unsubscribe(notif_fd, (const char)*key);
-        char transmission[2];
-        transmission[0] = opcode2;
-        transmission[1] = (char)res2;
-        if (write_all(resp_fd, transmission, 2) == -1)
+        received_key[40] = '\0';
+        strcpy(key, received_key);
+        printf("notif_fd: %d\n", notif_fd);
+        int res2 = subscribe(notif_fd, (const char)*key);
+        printf("res2: %d\n", res2);
+        char unsubscription_output[3];
+        unsubscription_output[0] = opcode2;
+        unsubscription_output[1] = (char)(res2 + '0');
+        unsubscription_output[2] = '\0';
+        if (write_all(resp_fd, unsubscription_output, 3) == -1)
         {
           perror("Failed to write to response pipe");
           break;
