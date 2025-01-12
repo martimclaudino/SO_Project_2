@@ -8,7 +8,15 @@
 /// @return 0 if the KVS state was initialized successfully, 1 otherwise.
 int kvs_init();
 
+// Returns
+// 1 key exists
+// 0 key doesn't exist
 int check_if_pair_exists(char *key);
+
+// Returns
+// 1 client with fd as notif_pipe is already subscribed to key
+// 0 not subscribed
+int already_subscribed(int fd, char *key);
 
 /// Destroys the KVS state.
 /// @return 0 if the KVS state was terminated successfully, 1 otherwise.
@@ -58,4 +66,4 @@ void kvs_wait_backup();
 /// @param delay_us Delay in milliseconds.
 void kvs_wait(unsigned int delay_ms);
 
-#endif  // KVS_OPERATIONS_H
+#endif // KVS_OPERATIONS_H
