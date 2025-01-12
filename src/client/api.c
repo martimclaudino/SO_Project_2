@@ -14,32 +14,27 @@ int req_fd, resp_fd, notif_fd;
 
 int kvs_connect(char *req_pipe_path, char *resp_pipe_path,
                 char *server_pipe_path, char *notif_pipe_path,
-                int *notif_fd_main, int *req_fd_main, int *resp_fd_main)
-{
+                int *notif_fd_main, int *req_fd_main, int *resp_fd_main) {
   // create pipes and connect
   unlink(req_pipe_path);
   unlink(resp_pipe_path);
   unlink(notif_pipe_path);
 
-  if (mkfifo(req_pipe_path, 0777) < 0)
-  {
+  if (mkfifo(req_pipe_path, 0777) < 0) {
     perror("Failed to create named pipe");
     return 1;
   }
-  if (mkfifo(resp_pipe_path, 0777) < 0)
-  {
+  if (mkfifo(resp_pipe_path, 0777) < 0) {
     perror("Failed to create named pipe");
     return 1;
   }
-  if (mkfifo(notif_pipe_path, 0777) < 0)
-  {
+  if (mkfifo(notif_pipe_path, 0777) < 0) {
     perror("Failed to create named pipe");
     return 1;
   }
 
   int server_fd;
-  if ((server_fd = open(server_pipe_path, O_WRONLY)) < 0)
-  {
+  if ((server_fd = open(server_pipe_path, O_WRONLY)) < 0) {
     perror("Failed to open named pipe");
     return 1;
   }
@@ -59,27 +54,23 @@ int kvs_connect(char *req_pipe_path, char *resp_pipe_path,
   printf("msg: %s\n", msg);
 
   // Send the message to the server
-  if (write_all(server_fd, msg, 121) == -1)
-  {
+  if (write_all(server_fd, msg, 121) == -1) {
     fprintf(stderr, "Failed to send message to server\n");
     return 1;
   }
 
   // Opening the pipes
-  if ((resp_fd = open(resp_pipe_path, O_RDONLY)) < 0)
-  {
+  if ((resp_fd = open(resp_pipe_path, O_RDONLY)) < 0) {
     perror("Failed to open response pipe");
     return 1;
   }
 
-  if ((notif_fd = open(notif_pipe_path, O_RDONLY)) < 0)
-  {
+  if ((notif_fd = open(notif_pipe_path, O_RDONLY)) < 0) {
     perror("Failed to open notification pipe");
     return 1;
   }
 
-  if ((req_fd = open(req_pipe_path, O_WRONLY)) < 0)
-  {
+  if ((req_fd = open(req_pipe_path, O_WRONLY)) < 0) {
     perror("Failed to open request pipe");
     return 1;
   }
@@ -96,13 +87,11 @@ int kvs_connect(char *req_pipe_path, char *resp_pipe_path,
   snprintf(message, sizeof(message),
            "Server returned %s for operation: connect\n",
            server_connection_result);
-  if (write_all(1, message, 43) == -1)
-  {
+  if (write_all(1, message, 43) == -1) {
     perror("Failed to write to response pipe");
     return 1;
   }
-  if (server_connection_result[1] == '1')
-  { // Failed to connect
+  if (server_connection_result[1] == '1') {  // Failed to connect
     close(req_fd);
     close(resp_fd);
     close(notif_fd);
@@ -115,23 +104,24 @@ int kvs_connect(char *req_pipe_path, char *resp_pipe_path,
 int kvs_disconnect(/*int req_fd_dis, int resp_fd_dis, int notif_fd_dis, char
                     *req_pipe_path, char *resp_pipe_path, char
                     **notif_pipe_path*/
-)
-{
+) {
   // close pipes and unlink pipe files
-  if (write_all(req_fd, "2", 2) == -1)
-  {
+  if (write_all(req_fd, "2", 1) == -1) {
     perror("Failed to write to response pipe");
     return 1;
   }
-  char response[2];
-  read_all(resp_fd, response, 2, NULL);
+  char response[3];
+  if (read_all(resp_fd, response, 3, NULL) == -1) {
+    perror("Failed to read from response pipe");
+    return 1;
+  }
+
   // printf("Server returned %c for operation: disconnect\n", response[1]); N
   // SEI QUAL MANEIRA E PARA FAZER, COPILOT DISSE A 1º
-  char message[45];
+  char message[46];
   snprintf(message, sizeof(message),
-           "Server returned %d for operation: disconnect\n", response[1]);
-  if (write_all(1, message, 45) == -1)
-  {
+           "Server returned %s for operation: disconnect\n", response);
+  if (write_all(1, message, 46) == -1) {
     perror("Failed to write to response pipe");
     return 1;
   }
@@ -142,8 +132,7 @@ int kvs_disconnect(/*int req_fd_dis, int resp_fd_dis, int notif_fd_dis, char
   return 0;
 }
 
-int kvs_subscribe(const char *key)
-{
+int kvs_subscribe(const char *key) {
   // send subscribe message to request pipe and wait for response in response
   char subscrition[41] = {0};
   char key2[40] = {0};
@@ -152,15 +141,13 @@ int kvs_subscribe(const char *key)
   memcpy(subscrition + 1, key2, 40);
 
   printf("subscrition: %s\n", subscrition);
-  if (write_all(req_fd, subscrition, 41) == -1)
-  {
+  if (write_all(req_fd, subscrition, 41) == -1) {
     perror("Failed to write to response pipe");
     return 1;
   }
   // Wait for response
   char server_subscription_result[3];
-  if (read_all(resp_fd, server_subscription_result, 3, NULL) == -1)
-  {
+  if (read_all(resp_fd, server_subscription_result, 3, NULL) == -1) {
     perror("Failed to read from response pipe");
     return 1;
   }
@@ -169,20 +156,17 @@ int kvs_subscribe(const char *key)
   snprintf(message, sizeof(message),
            "Server returned %s for operation: subscribe\n",
            server_subscription_result);
-  if (write_all(1, message, 44) == -1)
-  {
+  if (write_all(1, message, 44) == -1) {
     perror("Failed to write to response pipe");
     return 1;
   }
-  if (server_subscription_result[1] == '0')
-  {
+  if (server_subscription_result[1] == '0') {
     return 1;
   }
   return 0;
 }
 
-int kvs_unsubscribe(const char *key)
-{
+int kvs_unsubscribe(const char *key) {
   // send unsubscribe message to request pipe and wait for response in response
   printf("key to unsub: %s\n", key);
   char unsubscrition[41] = {0};
@@ -192,19 +176,16 @@ int kvs_unsubscribe(const char *key)
   memcpy(unsubscrition + 1, key, 40);
   printf("key que é passada: %s\n", unsubscrition);
 
-  if (write_all(req_fd, unsubscrition, 41) == -1)
-  {
+  if (write_all(req_fd, unsubscrition, 41) == -1) {
     perror("Failed to write to response pipe");
     return 1;
   }
   char server_unsubscription_result[3];
-  if (read_all(resp_fd, server_unsubscription_result, 3, NULL) == -1)
-  {
+  if (read_all(resp_fd, server_unsubscription_result, 3, NULL) == -1) {
     perror("Failed to read from response pipe");
     return 1;
   }
-  for (int i = 0; i < 3; i++)
-  {
+  for (int i = 0; i < 3; i++) {
     if (server_unsubscription_result[i] == '\0')
       printf("\\0");
     else
@@ -216,13 +197,11 @@ int kvs_unsubscribe(const char *key)
   snprintf(message, sizeof(message),
            "Server returned %s for operation: unsubscribe\n",
            server_unsubscription_result);
-  if (write_all(1, message, 46) == -1)
-  {
+  if (write_all(1, message, 46) == -1) {
     perror("Failed to write to response pipe");
     return 1;
   }
-  if (server_unsubscription_result[1] == '1')
-  {
+  if (server_unsubscription_result[1] == '1') {
     return 1;
   }
   // pipe
