@@ -8,7 +8,7 @@
 /// @return 0 if the KVS state was initialized successfully, 1 otherwise.
 int kvs_init();
 
-int check_if_pair_exists(const char key);
+int check_if_pair_exists(char *key);
 
 /// Destroys the KVS state.
 /// @return 0 if the KVS state was terminated successfully, 1 otherwise.
@@ -16,9 +16,9 @@ int kvs_terminate();
 
 int clean_client(int notif_fd);
 
-void kvs_subscribe(int fd, const char key);
+void kvs_subscribe(int fd, char *key);
 
-int kvs_unsubscribe(int fd, const char key);
+int kvs_unsubscribe(int fd, char *key);
 
 /// Writes a key value pair to the KVS. If key already exists it is updated.
 /// @param num_pairs Number of pairs being written.
@@ -58,4 +58,4 @@ void kvs_wait_backup();
 /// @param delay_us Delay in milliseconds.
 void kvs_wait(unsigned int delay_ms);
 
-#endif // KVS_OPERATIONS_H
+#endif  // KVS_OPERATIONS_H
