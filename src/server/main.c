@@ -11,7 +11,8 @@
 #include <sys/types.h> // Para tipos POSIX básicos
 #include <sys/wait.h>
 #include <unistd.h>
-#include <unistd.h> // Para write()
+
+#include <signal.h>
 
 #include "../common/io.h"
 #include "../common/protocol.h"
@@ -220,6 +221,11 @@ int main(int argc, char *argv[])
     pthread_create(&t_client[i], NULL, respond_client, NULL);
   }
 
+  /* sigset_t set;
+  int sig;
+  sigemptyset(&set);
+  sigaddset(&set, SIGUSR1); */
+
   while (1)
   {
     char op_code = -1;
@@ -303,6 +309,10 @@ int count_job_files(const char *directory)
 
 void *respond_client()
 {
+  sigset_t set;
+  sigemptyset(&set);
+  sigaddset(&set, SIGUSR1);
+  pthread_sigmask(SIG_BLOCK, &set, NULL);
   while (1)
   {
     // Spliting the 3 client paths

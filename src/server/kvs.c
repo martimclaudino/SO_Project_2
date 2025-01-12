@@ -131,13 +131,19 @@ int write_pair(HashTable *ht, const char *key, const char *value)
         if (keyNode->subscribers[i] != 0)
         {
           notif_fd = keyNode->subscribers[i];
-          char buffer[83];
-          snprintf(buffer, 83, "1%s%s", key, value);
-          if (write_all(notif_fd, buffer, 83) == -1)
+          char buffer[81] = {0};
+          char key_sent[40] = {0};
+          char value_sent[40] = {0};
+          memcpy(key_sent, key, 40);
+          memcpy(value_sent, value, 40);
+          memcpy(buffer, "1", 1);
+          memcpy(buffer + 1, key_sent, 40);
+          memcpy(buffer + 41, value_sent, 40);
+
+          if (write_all(notif_fd, buffer, 81) == -1)
           {
             return 1;
           }
-          return 0;
         }
       }
       return 0;

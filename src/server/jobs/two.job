@@ -4,4 +4,6 @@ BACKUP
 DELETE [g]
 WRITE [(i,ignacio)(j,joana)]
 WRITE [(k,katia)(l,leonel)]
+WAIT 30000
+WRITE [(e,kanyewest)]
 BACKUP

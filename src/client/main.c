@@ -26,7 +26,7 @@ void *notif_func(void *fd)
     return NULL;
   }
 
-  char buffer[83];
+  char buffer[81];
   while (1)
   {
     char opcode;
@@ -44,17 +44,20 @@ void *notif_func(void *fd)
 
     char key[41];
     char value[41];
-    if (read_all(notif_fd, buffer, 82, NULL) == -1)
+    if (read_all(notif_fd, buffer, 80, NULL) == -1)
     {
       fprintf(stderr, "Failed to read message from client\n");
       return NULL;
     }
-    buffer[82] = '\0';
-    strncpy(key, buffer + 1, 41);
-    strncpy(value, buffer + 42, 41);
-    char message[86];
-    snprintf(message, sizeof(message), "(%s, %s)\n", key, value);
-    if (write_all(1, message, 86) == -1)
+
+    buffer[80] = '\0';
+    strncpy(key, buffer, 40);
+    key[40] = '\0';
+    strncpy(value, buffer + 40, 40);
+    value[40] = '\0';
+    char message[85];
+    snprintf(message, 85, "(%s,%s)\n", key, value);
+    if (write_all(1, message, 85) == -1)
     {
       perror("Failed to write to response pipe");
       return NULL;
