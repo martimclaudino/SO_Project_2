@@ -17,6 +17,11 @@ typedef struct
   char *notif_path;
 } NotifPipe;
 
+char req_pipe_path[40] = {0};
+char resp_pipe_path[40] = {0};
+char notif_pipe_path[40] = {0};
+int req_fd = -1, resp_fd = -1, pipe_control = 0;
+
 void *notif_func(void *fd)
 {
   int notif_fd = *(int *)fd;
@@ -38,6 +43,16 @@ void *notif_func(void *fd)
 
     if (opcode == '0')
     {
+      if (pipe_control == 0)
+      {
+        // forced disconnect with SIGUSR1
+        close(req_fd);
+        close(resp_fd);
+        close(notif_fd);
+        unlink(req_pipe_path);
+        unlink(resp_pipe_path);
+        unlink(notif_pipe_path);
+      }
       pthread_exit(0);
       return NULL;
     }
@@ -75,11 +90,8 @@ int main(int argc, char *argv[])
   }
   printf("Main do client \n");
 
-  char req_pipe_path[40] = {0};
   strcpy(req_pipe_path, "/tmp/req");
-  char resp_pipe_path[40] = {0};
   strcpy(resp_pipe_path, "/tmp/resp");
-  char notif_pipe_path[40] = {0};
   strcpy(notif_pipe_path, "/tmp/notif");
 
   char keys[MAX_NUMBER_SUB][MAX_STRING_SIZE] = {0};
@@ -91,7 +103,7 @@ int main(int argc, char *argv[])
   strncat(resp_pipe_path, argv[1], strlen(argv[1]) * sizeof(char));
   strncat(notif_pipe_path, argv[1], strlen(argv[1]) * sizeof(char));
 
-  int req_fd = -1, resp_fd = -1, notif_fd = -1;
+  int notif_fd = -1;
 
   if (kvs_connect(req_pipe_path, resp_pipe_path, server_pipe_path,
                   notif_pipe_path, &notif_fd, &req_fd, &resp_fd))
@@ -116,13 +128,13 @@ int main(int argc, char *argv[])
     switch (get_next(STDIN_FILENO))
     {
     case CMD_DISCONNECT:
-      if (kvs_disconnect(/* req_fd, resp_fd, notif_fd, req_pipe_path,
-                         resp_pipe_path, notif_pipe_path */
-                         ) != 0)
+      pipe_control = 1;
+      if (kvs_disconnect() != 0)
       {
         fprintf(stderr, "Failed to disconnect to the server\n");
         return 1;
       }
+
       unlink(req_pipe_path);
       unlink(resp_pipe_path);
       unlink(notif_pipe_path);

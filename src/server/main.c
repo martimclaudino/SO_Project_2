@@ -51,11 +51,24 @@ pthread_mutex_t backup_lock;
 FilePath *file_paths = NULL;
 int file_num = 0;
 pthread_mutex_t sem_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 int insert_index = 0;
 int remove_index = 0;
 char queue[MAX_SESSION_COUNT][121];
 sem_t full;
 sem_t empty;
+int connected_clients[MAX_SESSION_COUNT][3];
+
+void initialize_connected_clients()
+{
+  for (int i = 0; i < MAX_SESSION_COUNT; i++)
+  {
+    for (int j = 0; j < 3; j++)
+    {
+      connected_clients[i][j] = -1;
+    }
+  }
+}
 
 // returns
 // 0->key doesn't exist
@@ -91,6 +104,35 @@ int unsubscribe(int fd, char *key)
   return 1;
 }
 
+int forced_disconnect(int req_fd, int resp_fd, int notif_fd)
+{
+  clean_client(notif_fd);
+
+  char disconnect_message[83] = {0};
+  memcpy(disconnect_message, "0", 1);
+  if (write_all(notif_fd, disconnect_message, 83) == -1)
+  {
+    perror("Failed to write to notif pipe");
+    return 1;
+  }
+  close(req_fd);
+  close(resp_fd);
+  close(notif_fd);
+  return 0;
+}
+
+void signal_handler(int signo)
+{
+  printf("Received signal %d\n", signo);
+  for (int i; i < MAX_SESSION_COUNT; i++)
+  {
+    if (connected_clients[i][0] != -1)
+    {
+      forced_disconnect(connected_clients[i][0], connected_clients[i][1], connected_clients[i][2]);
+    }
+  }
+}
+
 void *respond_client();
 
 // Puts the pipes into the queue
@@ -112,20 +154,24 @@ void write_msg(char *req_pipe, char *resp_pipe, char *notif_pipe)
 // Gets the pipes from the queue
 void read_msg(char *Msg)
 {
-  printf("entrou no read_msg\n");
   sem_wait(&full);
-  printf("passou no semaforo\n");
   pthread_mutex_lock(&sem_mutex);
   memcpy(Msg, queue[remove_index], 121);
-  // strcpy(Msg, queue[remove_index]);
+
   queue[remove_index][0] = '\0';
   remove_index = (remove_index + 1) % MAX_SESSION_COUNT;
+
   pthread_mutex_unlock(&sem_mutex);
   sem_post(&empty);
 }
 
 int main(int argc, char *argv[])
 {
+  struct sigaction sa;
+  sa.sa_handler = signal_handler;
+  sa.sa_flags = SA_RESTART;
+  sigaction(SIGUSR1, &sa, NULL);
+
   if (argc != 5)
   {
     fprintf(stderr, "Usage: %s <directory> <n_backups>\n", argv[0]);
@@ -214,6 +260,8 @@ int main(int argc, char *argv[])
   sem_init(&full, 0, 0);
   sem_init(&empty, 0, MAX_SESSION_COUNT);
 
+  initialize_connected_clients();
+
   pthread_t t_client[MAX_SESSION_COUNT];
 
   for (int i = 0; i < MAX_SESSION_COUNT; i++)
@@ -221,10 +269,8 @@ int main(int argc, char *argv[])
     pthread_create(&t_client[i], NULL, respond_client, NULL);
   }
 
-  /* sigset_t set;
-  int sig;
-  sigemptyset(&set);
-  sigaddset(&set, SIGUSR1); */
+  int pid = getpid();
+  printf("pid: %d\n", pid);
 
   while (1)
   {
@@ -313,6 +359,7 @@ void *respond_client()
   sigemptyset(&set);
   sigaddset(&set, SIGUSR1);
   pthread_sigmask(SIG_BLOCK, &set, NULL);
+
   while (1)
   {
     // Spliting the 3 client paths
@@ -355,7 +402,16 @@ void *respond_client()
       perror("Failed to open request pipe");
       return NULL;
     }
-
+    for (int i = 0; i < MAX_SESSION_COUNT; i++)
+    {
+      if (connected_clients[i][0] == -1)
+      {
+        connected_clients[i][0] = req_fd;
+        connected_clients[i][1] = resp_fd;
+        connected_clients[i][2] = notif_fd;
+        break;
+      }
+    }
     // Connection successful message
     char connection_output[3];
     connection_output[0] = opcode;
@@ -381,7 +437,17 @@ void *respond_client()
       char key[41];
       if (opcode2 == '2')
       {
+        for (int i = 0; i < MAX_SESSION_COUNT; i++)
+        {
+          if (connected_clients[i][0] == req_fd)
+          {
+            connected_clients[i][0] = -1;
+            connected_clients[i][1] = -1;
+            connected_clients[i][2] = -1;
+          }
+        }
         kvs_disconnect_server(req_fd, resp_fd, notif_fd);
+
         unlink(req_pipe_path);
         unlink(resp_pipe_path);
         unlink(notif_pipe_path);
