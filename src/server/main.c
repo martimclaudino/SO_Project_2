@@ -93,11 +93,9 @@ int unsubscribe(int fd, char *key)
   {
     return 1;
   }
-  printf("key exists\n");
 
   if (already_subscribed(fd, key))
   {
-    printf("subscription existed\n");
     kvs_unsubscribe(fd, key);
     return 0;
   }
@@ -121,10 +119,9 @@ int forced_disconnect(int req_fd, int resp_fd, int notif_fd)
   return 0;
 }
 
-void signal_handler(int signo)
+void signal_handler()
 {
-  printf("Received signal %d\n", signo);
-  for (int i; i < MAX_SESSION_COUNT; i++)
+  for (int i = 0; i < MAX_SESSION_COUNT; i++)
   {
     if (connected_clients[i][0] != -1)
     {
@@ -171,6 +168,9 @@ int main(int argc, char *argv[])
   sa.sa_handler = signal_handler;
   sa.sa_flags = SA_RESTART;
   sigaction(SIGUSR1, &sa, NULL);
+
+  // Test SIGUSR1 with this:
+  // printf("pid: %d\n", getpid());
 
   if (argc != 5)
   {
@@ -269,9 +269,6 @@ int main(int argc, char *argv[])
     pthread_create(&t_client[i], NULL, respond_client, NULL);
   }
 
-  int pid = getpid();
-  printf("pid: %d\n", pid);
-
   while (1)
   {
     char op_code = -1;
@@ -282,30 +279,25 @@ int main(int argc, char *argv[])
     if (read_all(pipe_fd, &op_code, 1, NULL) == -1)
     {
       fprintf(stderr, "Failed to read message from client opcode\n");
-      return 1;
     }
 
     if (op_code == '1')
     {
-      printf("entrou no if do opcode\n");
       if (read_all(pipe_fd, req_pipe, 40, NULL) != 1)
       {
         fprintf(stderr, "Failed to read message from client req\n");
-        return 1;
       }
       req_pipe[40] = '\0';
 
       if (read_all(pipe_fd, resp_pipe, 40, NULL) != 1)
       {
         fprintf(stderr, "Failed to read message from client resp\n");
-        return 1;
       }
       resp_pipe[40] = '\0';
 
       if (read_all(pipe_fd, notify_pipe, 40, NULL) != 1)
       {
         fprintf(stderr, "Failed to read message from client notif\n");
-        return 1;
       }
       notify_pipe[40] = '\0';
       // Puts the pipes into the queue
@@ -325,6 +317,8 @@ int main(int argc, char *argv[])
   closedir(dir);
   pthread_mutex_destroy(&thread_lock);
   pthread_mutex_destroy(&backup_lock);
+  sem_destroy(&full);
+  sem_destroy(&empty);
   kvs_terminate();
 }
 
@@ -379,10 +373,6 @@ void *respond_client()
     strncpy(notif_pipe_path, client_msg + 81, 40);
     notif_pipe_path[40] = '\0';
 
-    /* printf("req_pipe_path: %s\n", req_pipe_path);
-    printf("resp_pipe_path: %s\n", resp_pipe_path);
-    printf("notif_pipe_path: %s\n", notif_pipe_path); */
-
     // Opening the pipes
     if ((resp_fd = open(resp_pipe_path, O_WRONLY)) < 0)
     {
@@ -392,13 +382,19 @@ void *respond_client()
 
     if ((notif_fd = open(notif_pipe_path, O_WRONLY)) < 0)
     {
-      write_all(resp_fd, opcode + "1", 2);
+      char error_msg[2];
+      error_msg[0] = opcode;
+      error_msg[1] = '1';
+      write_all(resp_fd, error_msg, 2);
       perror("Failed to open notification pipe");
       return NULL;
     }
     if ((req_fd = open(req_pipe_path, O_RDONLY)) < 0)
     {
-      write_all(resp_fd, opcode + "1", 2);
+      char error_msg[2];
+      error_msg[0] = opcode;
+      error_msg[1] = '1';
+      write_all(resp_fd, error_msg, 2);
       perror("Failed to open request pipe");
       return NULL;
     }
@@ -417,7 +413,6 @@ void *respond_client()
     connection_output[0] = opcode;
     connection_output[1] = '\0';
     strcat(connection_output, "0");
-    printf("connection_output: %s\n", connection_output);
     if (write_all(resp_fd, connection_output, 3) == -1)
     {
       perror("Failed to write to response pipe");
@@ -428,10 +423,14 @@ void *respond_client()
     {
       // Spliting the 3 client paths
       char opcode2;
-      printf("antes do opcode\n");
-      if (read_all(req_fd, &opcode2, 1, NULL) == -1)
+      int read_from_req = read_all(req_fd, &opcode2, 1, NULL);
+      if (read_from_req == -1)
       {
         fprintf(stderr, "Failed to read message from client\n");
+        break;
+      }
+      else if (read_from_req == 0)
+      {
         break;
       }
       char key[41];
@@ -463,24 +462,13 @@ void *respond_client()
         }
         received_key[40] = '\0';
         strcpy(key, received_key);
-        printf("key: %s\n", key);
-        printf("notif_fd: %d\n", notif_fd);
+
         int res = subscribe(notif_fd, key);
 
         char subscription_output[3];
         subscription_output[0] = opcode2;
         subscription_output[1] = (char)(res + '0');
         subscription_output[2] = '\0';
-
-        printf("subscription output: ");
-        for (int i = 0; i < 3; i++)
-        {
-          if (subscription_output[i] == '\0')
-            printf("\\0");
-          else
-            printf("%c", subscription_output[i]);
-        }
-        printf("\n");
 
         if (write_all(resp_fd, subscription_output, 3) == -1)
         {
@@ -498,10 +486,9 @@ void *respond_client()
         }
         received_key[40] = '\0';
         strcpy(key, received_key);
-        printf("key to unsub: %s\n", key);
 
         int res2 = unsubscribe(notif_fd, key);
-        printf("res2: %d\n", res2);
+
         // Unsubscription output
         char unsubscription_output[3];
         unsubscription_output[0] = opcode2;

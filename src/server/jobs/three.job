@@ -1,0 +1,6 @@
+WRITE [(kanye,west)(lebron,james)]
+WAIT 30000
+WRITE [(kanye,goat)]
+WAIT 5000
+DELETE [kanye]
+DELETE [lebron]

@@ -48,9 +48,7 @@ struct HashTable *create_hash_table()
 
 int register_subscribe(int fd, HashTable *ht, char *key)
 {
-  printf("key: %c\n", *key);
   int index = hash(key);
-  printf("passou do hash\n");
   KeyNode *keyNode = ht->table[index];
   while (keyNode != NULL)
   {
@@ -58,16 +56,9 @@ int register_subscribe(int fd, HashTable *ht, char *key)
     {
       for (int i = 0; i < MAX_SESSION_COUNT; i++)
       {
-        printf("keynode: %d\n", keyNode->subscribers[i]);
         if (keyNode->subscribers[i] == 0)
         {
           keyNode->subscribers[i] = fd;
-          // printf("keynode com subscrição: %d\n", keyNode->subscribers[i]);
-          for (int l = 0; l < MAX_SESSION_COUNT; l++)
-          {
-            printf("keynode->subscribers[%d]: %d\n", l,
-                   keyNode->subscribers[l]);
-          }
           return 1;
         }
       }
@@ -79,7 +70,6 @@ int register_subscribe(int fd, HashTable *ht, char *key)
 
 int register_unsubscribe(int fd, HashTable *ht, char *key)
 {
-  printf("key in register_unsubscribe: %c\n", *key);
   int index = hash(key);
   KeyNode *keyNode = ht->table[index];
 
@@ -87,21 +77,11 @@ int register_unsubscribe(int fd, HashTable *ht, char *key)
   {
     if (strcmp(keyNode->key, key) == 0)
     {
-      for (int l = 0; l < MAX_SESSION_COUNT; l++)
-      {
-        printf("keynode->subscribers[%d]: %d\n", l, keyNode->subscribers[l]);
-      }
-      printf("^ subs of each key before unsub\n");
-
       for (int i = 0; i < MAX_SESSION_COUNT; i++)
       {
-        printf("keynode->subscribers[%d]: %d\n", i, keyNode->subscribers[i]);
-        printf("fd: %d\n", fd);
         if (keyNode->subscribers[i] == fd)
         {
-          printf("achou o sub: %s\n", keyNode->key);
           keyNode->subscribers[i] = 0;
-          printf("se fez unsub isto deve ser zero: %s\n", keyNode->key);
           return 0;
         }
       }
@@ -109,7 +89,6 @@ int register_unsubscribe(int fd, HashTable *ht, char *key)
     }
     keyNode = keyNode->next;
   }
-  printf("não achou o sub\n");
   return 1;
 }
 
@@ -211,7 +190,7 @@ int kvs_disconnect_server(int req_fd, int resp_fd, int notif_fd)
 int delete_pair(HashTable *ht, const char *key)
 {
   int index = hash(key);
-  char key_sent[41];
+  char key_sent[41] = {0};
   int notif_fd;
   KeyNode *keyNode = ht->table[index];
   KeyNode *prevNode = NULL;
@@ -224,8 +203,7 @@ int delete_pair(HashTable *ht, const char *key)
       if (prevNode == NULL)
       {
         // Node to delete is the first node in the list
-        ht->table[index] =
-            keyNode->next; // Update the table to point to the next node
+        ht->table[index] = keyNode->next; // Update the table to point to the next node
       }
       else
       {
@@ -233,15 +211,21 @@ int delete_pair(HashTable *ht, const char *key)
         prevNode->next =
             keyNode->next; // Link the previous node to the next node
       }
-      sprintf(key_sent, "%s", keyNode->key);
+      memcpy(key_sent, keyNode->key, 40);
+      key_sent[40] = '\0';
+      char del[41] = {0};
+      memcpy(del, "DELETED", 7);
+      del[40] = '\0';
       for (int i = 0; i < MAX_SESSION_COUNT; i++)
       {
         if (keyNode->subscribers[i] != 0)
         {
           notif_fd = keyNode->subscribers[i];
-          char buffer[83];
-          snprintf(buffer, 83, "1%s%s", key_sent, "DELETED");
-          if (write_all(notif_fd, buffer, 83) == -1)
+          char buffer[80];
+          memcpy(buffer, "1", 1);
+          memcpy(buffer + 1, key_sent, 40);
+          memcpy(buffer + 41, del, 40);
+          if (write_all(notif_fd, buffer, 81) == -1)
           {
             return 1;
           }

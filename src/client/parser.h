@@ -5,21 +5,23 @@
 
 #include "src/common/constants.h"
 
-enum Command {
+enum Command
+{
   CMD_DISCONNECT,
   CMD_SUBSCRIBE,
   CMD_UNSUBSCRIBE,
   CMD_DELAY,
   CMD_EMPTY,
   CMD_INVALID,
-  EOC // End of commands
+  EOC, // End of commands
+  FORCED_TO_DISCONNECT
 };
 
 // Parses input from the given file descriptor, according to
 // KVS specification.
 // @param fd File descriptor of input.
 // @return enum Command Command code.
-enum Command get_next(int fd);
+enum Command get_next(int fd, int *pipe_control_parser);
 
 // Parses a list of strings
 // @param fd File descriptor to read from.

@@ -46,7 +46,6 @@ int kvs_terminate()
 
 int already_subscribed(int fd, char *key)
 {
-  printf("chave se o cliente é sub: %s\n", key);
   int index = hash(key);
   KeyNode *keyNode = kvs_table->table[index];
   while (keyNode != NULL)
@@ -57,7 +56,6 @@ int already_subscribed(int fd, char *key)
       {
         if (keyNode->subscribers[i] == fd)
         {
-          printf("é esta aqui: %s\n", keyNode->key);
           return 1;
         }
       }
@@ -70,7 +68,6 @@ int already_subscribed(int fd, char *key)
 
 int check_if_pair_exists(char *key)
 {
-  printf("chave a verificar se existe: %s\n", key);
   int index = hash(key);
   KeyNode *keyNode = kvs_table->table[index];
 
@@ -107,7 +104,6 @@ int clean_client(int notif_fd)
 
 void kvs_subscribe(int fd, char *key)
 {
-  printf("entrou no kvs_subscribe\n");
   register_subscribe(fd, kvs_table, key);
 }
 
