@@ -39,3 +39,9 @@ Para compilar o projeto (servidor e cliente), utiliza o `Makefile` fornecido na 
 
 ```bash
 make
+
+[cite_start]Para limpar os ficheiros binários e pipes criados[cite: 167]:
+```bash
+make clean
+
+
